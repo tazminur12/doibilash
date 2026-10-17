@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-doibrand-dark: #351C1B;
+  --color-doibrand-gold: #C48A4E;
+  --color-doibrand-light: #FAF8F5;
+  --color-doibrand-accent: #A95E35;
+  --font-bengali: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+  --font-hind: 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+  --font-sans: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+
+  /* ── Typography prose brand tokens ─────────────────────────────── */
+  --tw-prose-body: #4b5563;
+  --tw-prose-headings: #351C1B;
+  --tw-prose-links: #C48A4E;
+  --tw-prose-bold: #351C1B;
+  --tw-prose-counters: #C48A4E;
+  --tw-prose-bullets: #C48A4E;
+  --tw-prose-hr: #e5e7eb;
+  --tw-prose-quotes: #351C1B;
+  --tw-prose-quote-borders: #C48A4E;
+  --tw-prose-captions: #9ca3af;
+  --tw-prose-code: #A95E35;
+  --tw-prose-pre-code: #FAF8F5;
+  --tw-prose-pre-bg: #351C1B;
+  --tw-prose-th-borders: #d1d5db;
+  --tw-prose-td-borders: #e5e7eb;
+}
+
+/* Global Font Setting across full website */
+*, html, body, input, button, select, textarea {
+  font-family: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safe area padding for mobile browsers */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Sleek Custom WebKit Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #FAF8F5;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #C48A4E;
+  border-radius: 9999px;
+  border: 2px solid #FAF8F5;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #A95E35;
+}
