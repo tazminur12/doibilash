@@ -34,7 +34,6 @@ export default function CartDrawer({
     pathname === "/customers" ||
     pathname === "/products" ||
     pathname === "/settings";
-  if (isAdminRoute) return null;
 
   // Use props if provided, otherwise context
   const isOpen = propIsOpen !== undefined ? propIsOpen : contextIsOpen;
@@ -42,6 +41,7 @@ export default function CartDrawer({
 
   // Handle ESC key to close drawer
   useEffect(() => {
+    if (isAdminRoute) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
         handleClose();
@@ -59,7 +59,9 @@ export default function CartDrawer({
       document.body.style.overflow = "";
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, handleClose]);
+  }, [isOpen, handleClose, isAdminRoute]);
+
+  if (isAdminRoute) return null;
 
   return (
     <>
