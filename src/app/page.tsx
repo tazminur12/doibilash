@@ -1,4 +1,5 @@
 import React from "react";
+import type { Metadata } from "next";
 import HeroSection from "@/components/sections/HeroSection";
 import TrustUspStrip from "@/components/sections/TrustUspStrip";
 import FlashDealSection from "@/components/sections/FlashDealSection";
@@ -8,6 +9,10 @@ import HeritageStorySection from "@/components/sections/HeritageStorySection";
 import GiftHamperSection from "@/components/sections/GiftHamperSection";
 import CustomerReviews from "@/components/sections/CustomerReviews";
 import HomeFaqSection from "@/components/sections/HomeFaqSection";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export default function Home() {
   return (

@@ -26,6 +26,37 @@
   --tw-prose-pre-bg: #351C1B;
   --tw-prose-th-borders: #d1d5db;
   --tw-prose-td-borders: #e5e7eb;
+
+  /* ── Header animations ─────────────────────────────────────────── */
+  --animate-header-fade-up: header-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-header-shine: header-shine 3.2s ease-in-out infinite;
+
+  @keyframes header-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes header-shine {
+    0%, 60% {
+      left: -50%;
+    }
+    100% {
+      left: 150%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-header-fade-up,
+  .animate-header-shine {
+    animation: none;
+  }
 }
 
 /* Global Font Setting across full website */

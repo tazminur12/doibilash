@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   SlidersHorizontal,
@@ -9,25 +9,35 @@ import {
   ChevronDown,
   X,
   RotateCcw,
+  Store,
+  Check,
+  Wallet,
+  Snowflake,
+  PackageSearch,
+  LayoutGrid,
 } from "lucide-react";
 import ProductCard, { ProductItem } from "@/components/ui/ProductCard";
+import PriceRangeFilter from "@/components/shop/PriceRangeFilter";
+import FilterSheet from "@/components/shop/FilterSheet";
+import { toBnDigits } from "@/lib/bangla";
 
 interface CategoryOption {
   id: string;
   name: string;
   englishName: string;
-  count: number;
 }
 
 const CATEGORIES: CategoryOption[] = [
-  { id: "doi", name: "বগুড়ার দই", englishName: "Doi", count: 8 },
-  { id: "ghee", name: "গাওয়া ঘি", englishName: "Ghee", count: 5 },
-  { id: "honey", name: "খাঁটি মধু", englishName: "Honey", count: 6 },
-  { id: "sweets", name: "ঐতিহ্যবাহী মিষ্টি", englishName: "Sweets", count: 11 },
-  { id: "dates-nuts", name: "খেজুর ও বাদাম", englishName: "Dates & Nuts", count: 6 },
+  { id: "doi", name: "বগুড়ার দই", englishName: "Doi" },
+  { id: "ghee", name: "গাওয়া ঘি", englishName: "Ghee" },
+  { id: "honey", name: "খাঁটি মধু", englishName: "Honey" },
+  { id: "sweets", name: "ঐতিহ্যবাহী মিষ্টি", englishName: "Sweets" },
+  { id: "dates-nuts", name: "খেজুর ও বাদাম", englishName: "Dates & Nuts" },
 ];
 
-const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[] = [
+type ShopProduct = ProductItem & { category: string; numericPrice: number; numericOriginal: number };
+
+const SHOP_PRODUCTS: ShopProduct[] = [
   {
     id: 1,
     slug: "bogra-special-doi",
@@ -35,6 +45,7 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
     price: "৳ 500",
     numericPrice: 500,
     originalPrice: "৳ 600",
+    numericOriginal: 600,
     image: "/Product/doi.jpg",
     badge: "Hot Sale",
     unit: "১ কেজি সরা",
@@ -43,10 +54,11 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
   {
     id: 2,
     slug: "special-ghee-roasted-laccha-semai",
-    title: "গাওয়া ঘিয়ে ভাজা স্পেশাল লাচ্ছা সেমাই",
+    title: "গাওয়া ঘিয়ে ভাজা স্পেশাল লাচ্ছা সেমাই",
     price: "৳ 480",
     numericPrice: 480,
     originalPrice: "৳ 560",
+    numericOriginal: 560,
     image: "/Product/laccha_semai.jpg",
     badge: "হট ডিল",
     unit: "৫০০ গ্রাম বক্স",
@@ -59,8 +71,9 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
     price: "৳ 420",
     numericPrice: 420,
     originalPrice: "৳ 480",
+    numericOriginal: 480,
     image: "/Product/mini_doi.png",
-    badge: "জনপ্রিয়",
+    badge: "জনপ্রিয়",
     unit: "৪ কাপ বক্স",
     category: "doi",
   },
@@ -71,6 +84,7 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
     price: "৳ 550",
     numericPrice: 550,
     originalPrice: "৳ 650",
+    numericOriginal: 650,
     image: "/Product/mango.jpg",
     badge: "স্পেশাল",
     unit: "১ কেজি সরা",
@@ -79,12 +93,13 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
   {
     id: 5,
     slug: "pure-ghee",
-    title: "খাঁটি গাওয়া ঘি (দানাদার)",
+    title: "খাঁটি গাওয়া ঘি (দানাদার)",
     price: "৳ 1,450",
     numericPrice: 1450,
     originalPrice: "৳ 1,600",
+    numericOriginal: 1600,
     image:
-      "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "Discount",
     unit: "৯০০ গ্রাম জার",
     category: "ghee",
@@ -96,8 +111,9 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
     price: "৳ 850",
     numericPrice: 850,
     originalPrice: "৳ 980",
+    numericOriginal: 980,
     image:
-      "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "Hot Sale",
     unit: "৫০০ গ্রাম বোতল",
     category: "honey",
@@ -109,8 +125,9 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
     price: "৳ 420",
     numericPrice: 420,
     originalPrice: "৳ 480",
+    numericOriginal: 480,
     image:
-      "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "Discount",
     unit: "১ কেজি বক্স",
     category: "sweets",
@@ -118,394 +135,460 @@ const SHOP_PRODUCTS: (ProductItem & { category: string; numericPrice: number })[
   {
     id: 8,
     slug: "ajwa-dates",
-    title: "প্রিমিয়াম খোরমা খেজুর",
+    title: "প্রিমিয়াম খোরমা খেজুর",
     price: "৳ 750",
     numericPrice: 750,
     originalPrice: "৳ 900",
+    numericOriginal: 900,
     image:
-      "https://images.unsplash.com/photo-1596704017254-9b121068fb31?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "Hot Sale",
     unit: "১ কেজি প্যাকেট",
     category: "dates-nuts",
   },
 ];
 
+const PRICE_MIN = 300;
+const PRICE_MAX = 2000;
+const PAGE_SIZE = 9;
+
+const PRICE_PRESETS = [
+  { label: "৳৫০০ এর নিচে", min: PRICE_MIN, max: 500 },
+  { label: "৳৫০০ – ৳১,০০০", min: 500, max: 1000 },
+  { label: "৳১,০০০+", min: 1000, max: PRICE_MAX },
+];
+
+const SORT_OPTIONS = [
+  { value: "latest", label: "সর্বশেষ" },
+  { value: "price-low", label: "মূল্য: কম থেকে বেশি" },
+  { value: "price-high", label: "মূল্য: বেশি থেকে কম" },
+  { value: "discount", label: "সর্বোচ্চ ছাড়" },
+];
+
+const CATEGORY_COUNTS = CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
+  acc[cat.id] = SHOP_PRODUCTS.filter((p) => p.category === cat.id).length;
+  return acc;
+}, {});
+
+
+const discountOf = (p: ShopProduct) => (p.numericOriginal - p.numericPrice) / p.numericOriginal;
+
+interface FilterPanelProps {
+  selectedCategories: string[];
+  toggleCategory: (id: string) => void;
+  minPrice: number;
+  maxPrice: number;
+  setMinPrice: (n: number) => void;
+  setMaxPrice: (n: number) => void;
+}
+
+function FilterPanel({
+  selectedCategories,
+  toggleCategory,
+  minPrice,
+  maxPrice,
+  setMinPrice,
+  setMaxPrice,
+}: FilterPanelProps) {
+  return (
+    <div className="space-y-7">
+      {/* Categories */}
+      <div>
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-doibrand-dark">
+          <span className="w-1.5 h-1.5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold" />
+          ক্যাটাগরি
+        </h3>
+        <div className="space-y-1.5">
+          {CATEGORIES.map((cat) => {
+            const isChecked = selectedCategories.includes(cat.id);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => toggleCategory(cat.id)}
+                aria-pressed={isChecked}
+                className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition cursor-pointer ${
+                  isChecked ? "bg-[#FBF1E4] ring-1 ring-doibrand-gold/40" : "hover:bg-stone-50"
+                }`}
+              >
+                <span
+                  className={`w-5 h-5 shrink-0 grid place-items-center rounded-md transition ${
+                    isChecked
+                      ? "bg-linear-to-br from-doibrand-accent to-doibrand-gold text-white shadow-sm"
+                      : "bg-white ring-1 ring-stone-300"
+                  }`}
+                >
+                  {isChecked && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className={`block text-sm ${isChecked ? "font-bold text-doibrand-dark" : "text-stone-700"}`}>
+                    {cat.name}
+                  </span>
+                  <span className="block text-[10px] text-stone-400 font-sans">{cat.englishName}</span>
+                </span>
+                <span
+                  className={`min-w-6 h-6 px-1.5 grid place-items-center rounded-full text-[11px] font-bold ${
+                    isChecked ? "bg-white text-doibrand-accent" : "bg-stone-100 text-stone-500"
+                  }`}
+                >
+                  {toBnDigits(CATEGORY_COUNTS[cat.id])}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Price */}
+      <div className="pt-6 border-t border-doibrand-gold/15">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-bold text-doibrand-dark">
+          <span className="w-1.5 h-1.5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold" />
+          মূল্য সীমা
+        </h3>
+
+        <PriceRangeFilter
+          bounds={{ min: PRICE_MIN, max: PRICE_MAX }}
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onMinChange={setMinPrice}
+          onMaxChange={setMaxPrice}
+          presets={PRICE_PRESETS}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ShopPage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number>(300);
-  const [maxPrice, setMaxPrice] = useState<number>(2000);
+  const [minPrice, setMinPrice] = useState<number>(PRICE_MIN);
+  const [maxPrice, setMaxPrice] = useState<number>(PRICE_MAX);
   const [sortBy, setSortBy] = useState<string>("latest");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const closeMobileFilter = useCallback(() => setIsMobileFilterOpen(false), []);
 
   const toggleCategory = (catId: string) => {
+    setCurrentPage(1);
     setSelectedCategories((prev) =>
       prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
     );
   };
 
-  const handleClearFilters = () => {
-    setSelectedCategories([]);
-    setMinPrice(300);
-    setMaxPrice(2000);
+  const updateMin = (n: number) => {
+    setCurrentPage(1);
+    setMinPrice(n);
+  };
+  const updateMax = (n: number) => {
+    setCurrentPage(1);
+    setMaxPrice(n);
   };
 
-  // Filter and sort products
+  const handleClearFilters = () => {
+    setSelectedCategories([]);
+    setMinPrice(PRICE_MIN);
+    setMaxPrice(PRICE_MAX);
+    setCurrentPage(1);
+  };
+
+  const isPriceFiltered = minPrice > PRICE_MIN || maxPrice < PRICE_MAX;
+  const activeFilterCount = selectedCategories.length + (isPriceFiltered ? 1 : 0);
+
   const filteredProducts = useMemo(() => {
     return SHOP_PRODUCTS.filter((product) => {
-      // Category filter
-      if (
-        selectedCategories.length > 0 &&
-        !selectedCategories.includes(product.category)
-      ) {
-        return false;
-      }
-      // Price filter
-      if (product.numericPrice < minPrice || product.numericPrice > maxPrice) {
-        return false;
-      }
+      if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) return false;
+      if (product.numericPrice < minPrice || product.numericPrice > maxPrice) return false;
       return true;
     }).sort((a, b) => {
       if (sortBy === "price-low") return a.numericPrice - b.numericPrice;
       if (sortBy === "price-high") return b.numericPrice - a.numericPrice;
-      return 0; // latest/default
+      if (sortBy === "discount") return discountOf(b) - discountOf(a);
+      return 0;
     });
   }, [selectedCategories, minPrice, maxPrice, sortBy]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const page = Math.min(currentPage, totalPages);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pagedProducts = filteredProducts.slice(pageStart, pageStart + PAGE_SIZE);
+
+  const filterPanelProps: FilterPanelProps = {
+    selectedCategories,
+    toggleCategory,
+    minPrice,
+    maxPrice,
+    setMinPrice: updateMin,
+    setMaxPrice: updateMax,
+  };
+
   return (
-    <main className="min-h-screen bg-doibrand-light text-doibrand-dark">
-      {/* Breadcrumb Header */}
-      <div className="border-b border-stone-200/70 bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-3 sm:py-3.5">
-          <nav className="flex items-center gap-2 text-xs text-gray-500 font-bengali">
-            <Link href="/" className="hover:text-doibrand-gold transition-colors">
+    <main className="min-h-screen bg-doibrand-light text-doibrand-dark font-bengali">
+      {/* Hero */}
+      <section className="px-4 sm:px-6 lg:px-8 pt-5 md:pt-6">
+        <div className="relative max-w-7xl mx-auto overflow-hidden rounded-3xl bg-linear-to-br from-[#FFF3E3] via-[#FFFCF7] to-[#F6DDBD] ring-1 ring-doibrand-gold/20 shadow-[0_20px_50px_-32px_rgba(169,94,53,0.6)] px-5 py-7 sm:px-10 sm:py-10">
+          <div className="pointer-events-none absolute -top-24 -right-16 w-96 h-96 rounded-full bg-[#F2C9A0]/40 blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-doibrand-gold/60 to-transparent" />
+          <Store className="pointer-events-none absolute right-8 -bottom-6 hidden md:block w-44 h-44 text-doibrand-gold/10 -rotate-6" strokeWidth={1} />
+
+          <nav aria-label="Breadcrumb" className="relative flex items-center gap-1.5 text-xs text-stone-500">
+            <Link href="/" className="hover:text-doibrand-accent transition-colors">
               হোম
             </Link>
             <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-doibrand-dark font-semibold">সকল পণ্য (Shop)</span>
+            <span className="font-semibold text-doibrand-accent">সকল পণ্য</span>
           </nav>
+
+          <div className="relative mt-4 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+            <div>
+              <h1 className="text-3xl sm:text-[40px] font-extrabold leading-tight tracking-tight">
+                আমাদের সকল{" "}
+                <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
+                  পণ্য
+                </span>
+              </h1>
+              <p className="mt-2 max-w-lg text-xs sm:text-sm leading-relaxed text-stone-600">
+                বগুড়ার খাঁটি দই, গাওয়া ঘি, প্রাকৃতিক মধু ও ঐতিহ্যবাহী মিষ্টান্ন — এক জায়গায়, প্রিমিয়াম মানে।
+              </p>
+            </div>
+            <ul className="flex flex-wrap gap-2">
+              {[
+                { icon: LayoutGrid, text: `${toBnDigits(SHOP_PRODUCTS.length)}টি পণ্য` },
+                { icon: Wallet, text: "ক্যাশ অন ডেলিভারি" },
+                { icon: Snowflake, text: "কোল্ড-চেইন ডেলিভারি" },
+              ].map(({ icon: Icon, text }) => (
+                <li
+                  key={text}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-doibrand-dark ring-1 ring-doibrand-gold/25 shadow-sm"
+                >
+                  <Icon className="w-3.5 h-3.5 text-doibrand-gold" />
+                  {text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* Category Quick Pills */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5">
+        <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex gap-2 overflow-x-auto hide-scrollbar">
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedCategories([]);
+              setCurrentPage(1);
+            }}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold transition cursor-pointer ${
+              selectedCategories.length === 0
+                ? "bg-doibrand-dark text-doibrand-light shadow-[0_8px_18px_-10px_rgba(53,28,27,0.8)]"
+                : "bg-white text-stone-600 ring-1 ring-stone-200 hover:ring-doibrand-gold/40"
+            }`}
+          >
+            সব পণ্য
+          </button>
+          {CATEGORIES.map((cat) => {
+            const active = selectedCategories.includes(cat.id);
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => toggleCategory(cat.id)}
+                aria-pressed={active}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition cursor-pointer ${
+                  active
+                    ? "bg-linear-to-r from-doibrand-accent to-doibrand-gold text-white shadow-[0_8px_18px_-10px_rgba(169,94,53,0.9)]"
+                    : "bg-white text-stone-600 ring-1 ring-stone-200 hover:ring-doibrand-gold/40"
+                }`}
+              >
+                {cat.name}
+                <span className={`text-[10px] ${active ? "text-white/80" : "text-stone-400"}`}>
+                  {toBnDigits(CATEGORY_COUNTS[cat.id])}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Main 2-Column Layout */}
-      <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
-        
-        {/* 1. Left Sidebar (Filter Panel) - Desktop Sticky */}
-        <aside className="w-full lg:w-1/4">
-          {/* Mobile Filter Toggle Button */}
-          <div className="lg:hidden mb-4">
-            <button
-              type="button"
-              onClick={() => setIsMobileFilterOpen(true)}
-              className="w-full bg-white border border-stone-200 rounded-xl p-3 flex items-center justify-between shadow-xs font-bengali text-sm font-semibold text-doibrand-dark"
-            >
-              <span className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-doibrand-gold" />
-                ফিল্টার করুন (Filters)
+      {/* Main Layout */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-6 lg:gap-8 items-start">
+        {/* Desktop Filter Sidebar */}
+        <aside className="hidden lg:block sticky top-32 rounded-3xl bg-white p-5 ring-1 ring-stone-200/70 shadow-[0_14px_36px_-26px_rgba(53,28,27,0.45)]">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <span className="w-8 h-8 grid place-items-center rounded-lg bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent">
+                <SlidersHorizontal className="w-4 h-4" />
               </span>
-              <span className="text-xs bg-amber-50 text-doibrand-accent px-2 py-0.5 rounded-full">
-                {selectedCategories.length > 0 ? `${selectedCategories.length} নির্বাচিত` : "সব"}
-              </span>
-            </button>
-          </div>
-
-          {/* Desktop Filter Panel */}
-          <div className="hidden lg:block sticky top-24 bg-white rounded-xl p-5 shadow-sm border border-gray-100 space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h2 className="font-bold text-base text-doibrand-dark font-bengali flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-doibrand-gold" />
-                <span>ফিল্টার অপশন (Filters)</span>
-              </h2>
-
-              {(selectedCategories.length > 0 || minPrice > 300 || maxPrice < 2000) && (
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="text-xs text-doibrand-accent hover:text-doibrand-dark font-bengali flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>রিসেট</span>
-                </button>
-              )}
-            </div>
-
-            {/* Categories Filter */}
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-doibrand-dark font-bengali mb-3">
-                ক্যাটাগরি (Categories)
-              </h3>
-              <div className="space-y-2.5">
-                {CATEGORIES.map((cat) => {
-                  const isChecked = selectedCategories.includes(cat.id);
-                  return (
-                    <label
-                      key={cat.id}
-                      className="flex items-center justify-between text-sm text-stone-700 hover:text-doibrand-dark cursor-pointer font-bengali select-none group"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleCategory(cat.id)}
-                          className="w-4 h-4 rounded border-gray-300 accent-doibrand-gold cursor-pointer"
-                        />
-                        <span className={`transition-colors ${isChecked ? "font-bold text-doibrand-dark" : ""}`}>
-                          {cat.name} ({cat.englishName})
-                        </span>
-                      </div>
-                      <span className="text-xs text-stone-400 group-hover:text-stone-500 font-sans">
-                        {cat.count}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Price Filter */}
-            <div className="pt-4 border-t border-stone-100">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-doibrand-dark font-bengali mb-3">
-                মূল্য সীমা (Price Filter)
-              </h3>
-
-              {/* Slider */}
-              <input
-                type="range"
-                min="300"
-                max="2000"
-                step="50"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(Number(e.target.value))}
-                className="w-full accent-doibrand-gold cursor-pointer"
-              />
-
-              {/* Min/Max input fields */}
-              <div className="flex items-center gap-2 mt-3">
-                <div className="flex-1">
-                  <label className="text-[10px] text-gray-500 font-bengali block mb-1">
-                    সর্বনিম্ন (Min)
-                  </label>
-                  <input
-                    type="number"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-xs text-doibrand-dark focus:outline-none focus:border-doibrand-gold shadow-xs"
-                  />
-                </div>
-                <span className="text-gray-400 mt-4">-</span>
-                <div className="flex-1">
-                  <label className="text-[10px] text-gray-500 font-bengali block mb-1">
-                    সর্বোচ্চ (Max)
-                  </label>
-                  <input
-                    type="number"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-lg p-2 text-xs text-doibrand-dark focus:outline-none focus:border-doibrand-gold shadow-xs"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        {/* Mobile Filter Drawer Modal */}
-        {isMobileFilterOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
-            <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs"
-              onClick={() => setIsMobileFilterOpen(false)}
-            />
-            <div className="fixed inset-y-0 left-0 w-4/5 max-w-sm bg-white p-5 shadow-2xl overflow-y-auto flex flex-col justify-between">
-              <div className="space-y-6">
-                <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-                  <h3 className="font-bold text-base text-doibrand-dark font-bengali">
-                    ফিল্টার অপশন
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setIsMobileFilterOpen(false)}
-                    className="p-1 rounded-full text-stone-400 hover:text-stone-700"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Mobile Categories */}
-                <div>
-                  <h4 className="text-xs font-semibold uppercase text-doibrand-dark font-bengali mb-3">
-                    ক্যাটাগরি
-                  </h4>
-                  <div className="space-y-3">
-                    {CATEGORIES.map((cat) => (
-                      <label
-                        key={cat.id}
-                        className="flex items-center justify-between text-sm text-stone-700 font-bengali cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedCategories.includes(cat.id)}
-                            onChange={() => toggleCategory(cat.id)}
-                            className="w-4 h-4 rounded border-gray-300 accent-doibrand-gold"
-                          />
-                          <span>{cat.name}</span>
-                        </div>
-                        <span className="text-xs text-stone-400">({cat.count})</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Mobile Price */}
-                <div className="pt-4 border-t border-stone-100">
-                  <h4 className="text-xs font-semibold uppercase text-doibrand-dark font-bengali mb-3">
-                    মূল্য সীমা
-                  </h4>
-                  <input
-                    type="range"
-                    min="300"
-                    max="2000"
-                    step="50"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(Number(e.target.value))}
-                    className="w-full accent-doibrand-gold"
-                  />
-                  <div className="flex justify-between text-xs text-gray-600 mt-2">
-                    <span>৳ {minPrice}</span>
-                    <span>৳ {maxPrice}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-stone-200 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleClearFilters}
-                  className="flex-1 py-2.5 rounded-lg border border-stone-300 text-xs font-bold text-stone-600 font-bengali"
-                >
-                  রিসেট
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsMobileFilterOpen(false)}
-                  className="flex-1 py-2.5 rounded-lg bg-doibrand-gold text-white text-xs font-bold font-bengali shadow-sm"
-                >
-                  প্রয়োগ করুন
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2. Right Content Area (Product Grid) */}
-        <section className="w-full lg:w-3/4 space-y-6">
-          {/* Top Bar */}
-          <div className="bg-white rounded-xl p-4 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="text-sm text-gray-500 font-bengali">
-              Showing <span className="font-semibold text-doibrand-dark">1-{filteredProducts.length}</span> of <span className="font-semibold text-doibrand-dark">36</span> results
-              {selectedCategories.length > 0 && (
-                <span className="ml-2 text-xs text-doibrand-accent">
-                  (ফিল্টার সক্রিয়)
-                </span>
-              )}
-            </div>
-
-            {/* Sort By Dropdown */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label htmlFor="sort-select" className="text-xs text-gray-500 font-bengali whitespace-nowrap">
-                Sort By:
-              </label>
-              <div className="relative flex-1 sm:flex-initial">
-                <select
-                  id="sort-select"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full sm:w-auto appearance-none bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-lg px-3 py-2 pr-8 text-xs font-medium text-doibrand-dark focus:outline-none focus:ring-1 focus:ring-doibrand-gold focus:border-doibrand-gold cursor-pointer transition-colors shadow-2xs font-bengali"
-                >
-                  <option value="latest">সর্বশেষ (Latest)</option>
-                  <option value="price-low">মূল্য: কম থেকে বেশি (Price: Low to High)</option>
-                  <option value="price-high">মূল্য: বেশি থেকে কম (Price: High to Low)</option>
-                  <option value="popular">সর্বাধিক বিক্রিত (Best Selling)</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-stone-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          {/* Product Grid (Responsive: 2 cols on mobile, 3 on tablet/desktop) */}
-          {filteredProducts.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center border border-gray-100 space-y-3">
-              <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mx-auto text-stone-400">
-                <SlidersHorizontal className="w-6 h-6" />
-              </div>
-              <h3 className="font-bengali font-bold text-lg text-doibrand-dark">
-                কোনো পণ্য পাওয়া যায়নি
-              </h3>
-              <p className="text-xs text-gray-500 font-bengali">
-                অনুগ্রহ করে আপনার ফিল্টার শর্ত পরিবর্তন করে পুনরায় চেষ্টা করুন
-              </p>
+              ফিল্টার
+            </h2>
+            {activeFilterCount > 0 && (
               <button
                 type="button"
                 onClick={handleClearFilters}
-                className="mt-2 px-5 py-2 rounded-lg bg-doibrand-gold text-white font-bengali text-xs font-semibold shadow-xs"
+                className="inline-flex items-center gap-1 rounded-full bg-[#FBF1E4] px-2.5 py-1 text-[11px] font-semibold text-doibrand-accent hover:bg-doibrand-gold/20 transition cursor-pointer"
               >
+                <RotateCcw className="w-3 h-3" />
+                রিসেট
+              </button>
+            )}
+          </div>
+          <FilterPanel {...filterPanelProps} />
+        </aside>
+
+        {/* Products */}
+        <section className="min-w-0 space-y-5">
+          {/* Toolbar */}
+          <div className="rounded-2xl bg-white/80 backdrop-blur p-3 sm:p-4 ring-1 ring-stone-200/70 shadow-[0_10px_28px_-24px_rgba(53,28,27,0.45)] flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="lg:hidden inline-flex items-center gap-2 rounded-xl bg-doibrand-dark px-3.5 py-2.5 text-xs font-bold text-doibrand-light cursor-pointer"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                ফিল্টার
+                {activeFilterCount > 0 && (
+                  <span className="min-w-5 h-5 px-1 grid place-items-center rounded-full bg-doibrand-gold text-[10px] text-doibrand-dark">
+                    {toBnDigits(activeFilterCount)}
+                  </span>
+                )}
+              </button>
+              <p className="text-xs sm:text-sm text-stone-500">
+                <span className="font-bold text-doibrand-dark">{toBnDigits(filteredProducts.length)}</span>টি পণ্য পাওয়া গেছে
+              </p>
+            </div>
+
+            <label className="relative flex items-center gap-2">
+              <span className="hidden sm:inline text-xs text-stone-500">সাজান:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="appearance-none rounded-xl bg-[#FBF1E4] pl-3.5 pr-9 py-2.5 text-xs font-bold text-doibrand-accent ring-1 ring-doibrand-gold/25 outline-none focus:ring-2 focus:ring-doibrand-gold/50 cursor-pointer"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 w-3.5 h-3.5 text-doibrand-accent" />
+            </label>
+
+            {/* Active Filter Chips */}
+            {activeFilterCount > 0 && (
+              <div className="w-full flex flex-wrap items-center gap-2 pt-3 border-t border-doibrand-gold/15">
+                {selectedCategories.map((id) => {
+                  const cat = CATEGORIES.find((c) => c.id === id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleCategory(id)}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#FBF1E4] px-2.5 py-1 text-[11px] font-semibold text-doibrand-accent ring-1 ring-doibrand-gold/25 hover:bg-doibrand-gold/20 transition cursor-pointer"
+                    >
+                      {cat?.name}
+                      <X className="w-3 h-3" />
+                    </button>
+                  );
+                })}
+                {isPriceFiltered && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateMin(PRICE_MIN);
+                      updateMax(PRICE_MAX);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full bg-[#FBF1E4] px-2.5 py-1 text-[11px] font-semibold text-doibrand-accent ring-1 ring-doibrand-gold/25 hover:bg-doibrand-gold/20 transition cursor-pointer font-sans"
+                  >
+                    ৳{minPrice} – ৳{maxPrice}
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="ml-auto text-[11px] font-semibold text-stone-500 hover:text-doibrand-accent cursor-pointer"
+                >
+                  সব মুছুন
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Grid / Empty State */}
+          {pagedProducts.length === 0 ? (
+            <div className="rounded-3xl bg-white p-10 sm:p-14 text-center ring-1 ring-stone-200/70">
+              <span className="mx-auto w-16 h-16 grid place-items-center rounded-full bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent ring-8 ring-[#FBF1E4]">
+                <PackageSearch className="w-7 h-7" />
+              </span>
+              <h3 className="mt-5 text-lg font-bold">কোনো পণ্য পাওয়া যায়নি</h3>
+              <p className="mt-1 text-xs text-stone-500">অনুগ্রহ করে ফিল্টার পরিবর্তন করে আবার চেষ্টা করুন</p>
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-linear-to-r from-doibrand-accent to-doibrand-gold px-5 py-2.5 text-xs font-bold text-white shadow-[0_10px_22px_-12px_rgba(169,94,53,0.9)] cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
                 ফিল্টার মুছুন
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-              {filteredProducts.map((product) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+              {pagedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
           )}
 
           {/* Pagination */}
-          <div className="pt-4 flex items-center justify-center gap-2 font-sans">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-2 sm:px-3 sm:py-2 rounded-lg border border-stone-200 bg-white text-doibrand-dark hover:bg-doibrand-light disabled:opacity-40 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Prev</span>
-            </button>
-
-            {[1, 2, 3].map((page) => {
-              const isActive = currentPage === page;
-              return (
+          {totalPages > 1 && (
+            <nav aria-label="Pagination" className="pt-4 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+                aria-label="Previous page"
+                className="w-10 h-10 grid place-items-center rounded-full bg-white text-doibrand-accent ring-1 ring-doibrand-gold/25 disabled:opacity-40 hover:bg-[#FBF1E4] transition cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
                 <button
-                  key={page}
+                  key={n}
                   type="button"
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    isActive
-                      ? "bg-doibrand-gold text-white shadow-sm"
-                      : "bg-white border border-stone-200 text-doibrand-dark hover:bg-doibrand-light"
+                  onClick={() => setCurrentPage(n)}
+                  aria-current={n === page ? "page" : undefined}
+                  className={`w-10 h-10 rounded-full text-sm font-bold transition cursor-pointer ${
+                    n === page
+                      ? "bg-linear-to-br from-doibrand-accent to-doibrand-gold text-white shadow-[0_8px_18px_-8px_rgba(169,94,53,0.8)]"
+                      : "bg-white text-doibrand-dark ring-1 ring-stone-200 hover:ring-doibrand-gold/40"
                   }`}
                 >
-                  {page}
+                  {toBnDigits(n)}
                 </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(3, p + 1))}
-              disabled={currentPage === 3}
-              className="p-2 sm:px-3 sm:py-2 rounded-lg border border-stone-200 bg-white text-doibrand-dark hover:bg-doibrand-light disabled:opacity-40 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
-              aria-label="Next page"
-            >
-              <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setCurrentPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+                aria-label="Next page"
+                className="w-10 h-10 grid place-items-center rounded-full bg-white text-doibrand-accent ring-1 ring-doibrand-gold/25 disabled:opacity-40 hover:bg-[#FBF1E4] transition cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </nav>
+          )}
         </section>
-
       </div>
+
+      <FilterSheet
+        open={isMobileFilterOpen}
+        onClose={closeMobileFilter}
+        onReset={handleClearFilters}
+        resultCount={filteredProducts.length}
+      >
+        <FilterPanel {...filterPanelProps} />
+      </FilterSheet>
     </main>
   );
 }

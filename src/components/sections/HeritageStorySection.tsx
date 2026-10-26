@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, Award, Heart, CheckCircle2, ChevronRight, ShieldCheck } from "lucide-react";
+import { Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
+import HeritageStats from "@/components/sections/HeritageStats";
 
 interface StepItem {
   id: number;
@@ -24,8 +25,7 @@ const STEPS: StepItem[] = [
     description:
       "প্রতিদিন ভোরে বগুড়ার প্রত্যন্ত চরাঞ্চলের দেশি গাভির খাঁটি, নির্ভেজাল দুধ সংগ্রহ করা হয়। কোনো প্রিজারভেটিভ বা গুঁড়ো দুধের মিশ্রণ নেই—শতভাগ খাঁটি ননীযুক্ত তরল দুধ।",
     highlight: "১০০% প্রাকৃতিক ও নির্ভেজাল",
-    image:
-      "https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?auto=format&fit=crop&w=800&q=80",
+    image: "/AI/Khati%20Milk.jpeg",
   },
   {
     id: 2,
@@ -36,7 +36,7 @@ const STEPS: StepItem[] = [
       "বড় লোহার কড়াইয়ে দেশি কাঠের চুলায় মৃদু আঁচে জ্বাল দিয়ে দুধের পরিমাণ এক-তৃতীয়াংশে নামিয়ে আনা হয়। এতে তৈরি হয় সোনালী লালচে রঙ আর অতুলনীয় প্রাকৃতিক ক্যারামেল সুবাস।",
     highlight: "ঘন ক্ষীরসার আসল ঘ্রাণ",
     image:
-      "https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&w=800&q=80",
+      "/Product/placeholder.svg",
   },
   {
     id: 3,
@@ -164,32 +164,7 @@ export default function HeritageStorySection() {
         </div>
 
         {/* Trust Stats Counter Strip */}
-        <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 pt-10 border-t border-stone-200/80 text-center">
-          <div className="p-3">
-            <div className="text-3xl sm:text-4xl font-extrabold text-doibrand-dark font-sans">
-              ২৫+
-            </div>
-            <p className="text-xs text-gray-500 mt-1">বছরের ঐতিহ্যবাহী কারিগরি</p>
-          </div>
-          <div className="p-3">
-            <div className="text-3xl sm:text-4xl font-extrabold text-doibrand-gold font-sans">
-              ৫০,০০০+
-            </div>
-            <p className="text-xs text-gray-500 mt-1">তৃপ্ত পরিবারে সফল ডেলিভারি</p>
-          </div>
-          <div className="p-3">
-            <div className="text-3xl sm:text-4xl font-extrabold text-doibrand-dark font-sans">
-              ১০০%
-            </div>
-            <p className="text-xs text-gray-500 mt-1">খাঁটি গরুর দুধের নিশ্চয়তা</p>
-          </div>
-          <div className="p-3">
-            <div className="text-3xl sm:text-4xl font-extrabold text-emerald-600 font-sans">
-              ৪.৯ / ৫
-            </div>
-            <p className="text-xs text-gray-500 mt-1">গড় কাস্টমার রেটিং রিভিউ</p>
-          </div>
-        </div>
+        <HeritageStats />
 
       </div>
     </section>

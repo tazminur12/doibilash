@@ -1,4 +1,6 @@
 import React from "react";
+import Link from "next/link";
+import { TrendingUp, ChevronRight } from "lucide-react";
 import ProductCard, { ProductItem } from "@/components/ui/ProductCard";
 
 const TOP_SELLING_PRODUCTS: ProductItem[] = [
@@ -49,7 +51,7 @@ const TOP_SELLING_PRODUCTS: ProductItem[] = [
     price: "৳ 1,450",
     originalPrice: "৳ 1,600",
     image:
-      "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "Discount",
     unit: "৯০০ গ্রাম জার",
   },
@@ -57,25 +59,50 @@ const TOP_SELLING_PRODUCTS: ProductItem[] = [
 
 export default function ProductGrid() {
   return (
-    <section className="w-full bg-transparent">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <section className="w-full font-bengali pb-12 md:pb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="flex flex-col items-center justify-center mb-6 text-center">
-          <h2 className="text-2xl font-bold text-doibrand-dark text-center font-bengali">
-            Top Selling Products
-          </h2>
-          <p className="font-bengali text-xs sm:text-sm text-doibrand-accent font-medium mt-1">
-            জনপ্রিয় ও সর্বাধিক বিক্রিত পণ্যসমূহ
-          </p>
-          <div className="w-12 h-0.5 bg-doibrand-gold mt-2 rounded-full" />
+        <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-3 py-1 text-[11px] font-semibold text-doibrand-accent shadow-[0_4px_12px_-8px_rgba(169,94,53,0.6)]">
+              <TrendingUp className="w-3.5 h-3.5 text-doibrand-gold" />
+              বেস্ট সেলার
+            </span>
+            <h2 className="mt-3 text-2xl sm:text-[34px] font-extrabold tracking-tight leading-tight text-doibrand-dark">
+              Top Selling{" "}
+              <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
+                Products
+              </span>
+            </h2>
+            <p className="mt-1.5 text-xs sm:text-sm text-stone-500">
+              জনপ্রিয় ও সর্বাধিক বিক্রিত পণ্যসমূহ
+            </p>
+          </div>
+
+          <Link
+            href="/shop"
+            className="group hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-4 py-2 text-sm font-semibold text-doibrand-accent hover:bg-doibrand-dark hover:text-doibrand-light hover:border-doibrand-dark transition-all"
+          >
+            সব পণ্য দেখুন
+            <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
         </div>
 
         {/* Product CSS Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
           {TOP_SELLING_PRODUCTS.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
+
+        {/* Mobile View All Link */}
+        <Link
+          href="/shop"
+          className="sm:hidden mt-5 flex items-center justify-center gap-1 text-sm font-semibold text-doibrand-accent"
+        >
+          সব পণ্য দেখুন
+          <ChevronRight className="w-4 h-4" />
+        </Link>
       </div>
     </section>
   );

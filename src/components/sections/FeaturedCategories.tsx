@@ -1,7 +1,9 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Sparkles, ArrowRight, ChevronRight } from "lucide-react";
+import { Sparkles, ArrowUpRight, ChevronRight } from "lucide-react";
 
 interface Category {
   id: string;
@@ -19,7 +21,7 @@ const FEATURED_CATEGORIES: Category[] = [
     id: "premium-doi",
     name: "প্রিমিয়াম দই",
     englishName: "Premium Doi",
-    subtitle: "বগুড়ার মাটির সরার দই",
+    subtitle: "বগুড়ার মাটির সরার দই",
     href: "/category/premium-doi",
     image: "/Product/doi.jpg",
     badge: "হট ফেভারিট",
@@ -29,10 +31,10 @@ const FEATURED_CATEGORIES: Category[] = [
     id: "laddu",
     name: "শাহী লাড্ডু",
     englishName: "Shahi Laddu",
-    subtitle: "খাঁটি ঘিয়ে ভাজা মতিচুর",
+    subtitle: "খাঁটি ঘিয়ে ভাজা মতিচুর",
     href: "/category/laddu",
     image:
-      "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "বেস্ট সেলার",
     itemCount: "৮+ আইটেম",
   },
@@ -40,7 +42,7 @@ const FEATURED_CATEGORIES: Category[] = [
     id: "laccha-semai",
     name: "লাচ্ছা সেমাই",
     englishName: "Laccha Semai",
-    subtitle: "ঘিয়ে ভাজা শাহী লাচ্ছা",
+    subtitle: "ঘিয়ে ভাজা শাহী লাচ্ছা",
     href: "/category/laccha-semai",
     image: "/Product/laccha_semai.jpg",
     badge: "উৎসব স্পেশাল",
@@ -48,12 +50,12 @@ const FEATURED_CATEGORIES: Category[] = [
   },
   {
     id: "ghee",
-    name: "দানাদার গাওয়া ঘি",
+    name: "দানাদার গাওয়া ঘি",
     englishName: "Pure Ghee",
     subtitle: "গাভীর দুধের খাঁটি ননী",
     href: "/shop",
     image:
-      "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "১০০% খাঁটি",
     itemCount: "৫+ আইটেম",
   },
@@ -64,7 +66,7 @@ const FEATURED_CATEGORIES: Category[] = [
     subtitle: "সুন্দরবনের চাকের মধু",
     href: "/shop",
     image:
-      "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "ন্যাচারাল",
     itemCount: "৬+ আইটেম",
   },
@@ -75,100 +77,121 @@ const FEATURED_CATEGORIES: Category[] = [
     subtitle: "রসগোল্লা, চমচম ও সন্দেশ",
     href: "/shop",
     image:
-      "https://images.unsplash.com/photo-1505253758473-96b3015f240a?auto=format&fit=crop&w=600&q=80",
+      "/Product/placeholder.svg",
     badge: "টাটকা স্বাদ",
     itemCount: "১১+ আইটেম",
   },
 ];
 
+function CategoryImage({ cat }: { cat: Category }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="absolute inset-0 grid place-items-center bg-linear-to-br from-[#FBEBD2] via-[#F3D7AE] to-[#E2B57C]">
+        <span className="text-6xl font-bold text-white/80 drop-shadow-sm select-none">
+          {Array.from(cat.name)[0]}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={cat.image}
+      alt={cat.name}
+      fill
+      sizes="(max-width: 640px) 44vw, (max-width: 1024px) 30vw, 200px"
+      onError={() => setFailed(true)}
+      className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+    />
+  );
+}
+
 export default function FeaturedCategories() {
   return (
-    <section className="w-full py-12 sm:py-16 bg-gradient-to-b from-stone-50 via-white to-doibrand-light/50 border-b border-stone-200/70">
+    <section className="w-full font-bengali py-4 pb-12 md:pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
         {/* Section Header */}
-        <div className="flex flex-col md:flex-row items-center md:items-end justify-between gap-4 mb-8 sm:mb-12">
-          <div className="text-center md:text-left">
-            <div className="inline-flex items-center gap-2 bg-amber-100/70 text-doibrand-accent px-3.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider mb-2 font-bengali">
+        <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-3 py-1 text-[11px] font-semibold text-doibrand-accent shadow-[0_4px_12px_-8px_rgba(169,94,53,0.6)]">
               <Sparkles className="w-3.5 h-3.5 text-doibrand-gold" />
-              <span>বাছাইকৃত বিশেষ কালেকশন</span>
-            </div>
-
-            <h2 className="font-bengali text-2xl sm:text-3xl md:text-4xl font-bold text-doibrand-dark tracking-tight">
-              জনপ্রিয় ক্যাটাগরিসমূহ
+              বাছাইকৃত বিশেষ কালেকশন
+            </span>
+            <h2 className="mt-3 text-2xl sm:text-[34px] font-extrabold tracking-tight leading-tight text-doibrand-dark">
+              জনপ্রিয়{" "}
+              <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
+                ক্যাটাগরিসমূহ
+              </span>
             </h2>
-
-            <p className="font-bengali text-xs sm:text-sm text-gray-500 mt-1.5 max-w-md">
-              বগুড়ার শতাব্দী প্রাচীন মাটির সরার দই, খাঁটি গাওয়া ঘি ও মুখরোচক মিষ্টান্নের সমাহার
+            <p className="mt-1.5 max-w-lg text-xs sm:text-sm text-stone-500">
+              বগুড়ার শতাব্দী প্রাচীন মাটির সরার দই, খাঁটি গাওয়া ঘি ও মুখরোচক মিষ্টান্নের সমাহার
             </p>
           </div>
 
-          {/* View All Categories Link */}
           <Link
             href="/shop"
-            className="group hidden sm:inline-flex items-center gap-1.5 text-xs sm:text-sm font-bengali font-bold text-doibrand-accent hover:text-doibrand-dark transition-colors"
+            className="group hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-4 py-2 text-sm font-semibold text-doibrand-accent hover:bg-doibrand-dark hover:text-doibrand-light hover:border-doibrand-dark transition-all"
           >
-            <span>সকল ক্যাটাগরি দেখুন</span>
-            <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
+            সকল ক্যাটাগরি
+            <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </div>
 
-        {/* Categories Grid (1:1 Perfect Square Proportion - Height & Width Identical) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 lg:gap-5">
+        {/* Categories: swipe on mobile, grid on larger screens */}
+        <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 lg:gap-5 overflow-x-auto sm:overflow-visible snap-x snap-mandatory hide-scrollbar pt-1 pb-3 sm:pb-0">
           {FEATURED_CATEGORIES.map((cat) => (
             <Link
               key={cat.id}
               href={cat.href}
-              className="aspect-square w-full group relative bg-white border border-stone-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col items-center justify-between text-center shadow-xs hover:shadow-xl hover:border-doibrand-gold hover:-translate-y-1.5 transition-all duration-300 focus:outline-none overflow-hidden"
+              className="group relative snap-start shrink-0 w-[44%] sm:w-auto aspect-[3/4] overflow-hidden rounded-2xl bg-[#F5E6D3] ring-1 ring-stone-200/70 shadow-[0_10px_28px_-20px_rgba(53,28,27,0.5)] transition-all duration-500 hover:-translate-y-1.5 hover:ring-2 hover:ring-doibrand-gold/60 hover:shadow-[0_24px_40px_-22px_rgba(169,94,53,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-doibrand-gold"
             >
-              {/* Top Row: Badge & Item Count */}
-              <div className="w-full flex items-center justify-between gap-1">
-                <span className="text-[10px] font-semibold bg-amber-50 text-doibrand-accent px-2 py-0.5 rounded-full font-bengali border border-amber-200/60 shadow-2xs">
-                  {cat.badge}
-                </span>
-                <span className="text-[10px] text-doibrand-gold font-bengali font-semibold group-hover:text-doibrand-accent transition-colors">
-                  {cat.itemCount}
-                </span>
-              </div>
+              <CategoryImage cat={cat} />
 
-              {/* Center Image Container with Ring & Hover Zoom */}
-              <div className="relative w-20 h-20 sm:w-22 sm:h-22 md:w-24 md:h-24 lg:w-26 lg:h-26 rounded-full overflow-hidden border-2 border-stone-100 group-hover:border-doibrand-gold group-hover:ring-4 group-hover:ring-doibrand-gold/20 shadow-sm transition-all duration-300 p-0.5 bg-stone-50 shrink-0 my-auto">
-                <div className="relative w-full h-full rounded-full overflow-hidden">
-                  <Image
-                    src={cat.image}
-                    alt={cat.name}
-                    fill
-                    sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 16vw"
-                    className="object-cover rounded-full transition-transform duration-500 group-hover:scale-110"
-                  />
-                  {/* Subtle inner overlay on hover */}
-                  <div className="absolute inset-0 bg-black/5 group-hover:bg-transparent transition-colors duration-300" />
+              {/* Soft top fade for badge legibility */}
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-linear-to-b from-black/25 to-transparent" />
+
+              {/* Badge */}
+              <span className="absolute top-2.5 left-2.5 rounded-full bg-white/90 backdrop-blur px-2 py-0.5 text-[10px] font-bold text-doibrand-accent shadow-sm">
+                {cat.badge}
+              </span>
+
+              {/* Frosted info panel */}
+              <div className="absolute inset-x-2 bottom-2 rounded-xl bg-white/85 backdrop-blur-md ring-1 ring-white/60 px-3 py-2.5 shadow-[0_8px_20px_-12px_rgba(53,28,27,0.5)] transition-colors duration-300 group-hover:bg-white/95">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-[15px] font-bold leading-tight text-doibrand-dark line-clamp-1">
+                      {cat.name}
+                    </h3>
+                    <p className="mt-0.5 text-[10px] sm:text-[11px] text-stone-500 line-clamp-1">
+                      {cat.subtitle}
+                    </p>
+                  </div>
+                  <span className="shrink-0 w-7 h-7 grid place-items-center rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold text-white shadow-sm transition-transform duration-300 group-hover:rotate-45">
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </span>
                 </div>
-              </div>
-
-              {/* Bottom: Category Name & Subtitle */}
-              <div className="w-full flex flex-col items-center">
-                <h3 className="font-bengali font-bold text-sm sm:text-base text-doibrand-dark group-hover:text-doibrand-accent transition-colors line-clamp-1 leading-tight">
-                  {cat.name}
-                </h3>
-                <span className="text-[10px] sm:text-[11px] text-gray-500 font-bengali line-clamp-1 mt-0.5">
-                  {cat.subtitle}
-                </span>
+                <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300">
+                  <div className="overflow-hidden">
+                    <p className="pt-1.5 mt-1.5 border-t border-doibrand-gold/20 text-[10px] font-semibold text-doibrand-gold">
+                      {cat.itemCount}
+                    </p>
+                  </div>
+                </div>
               </div>
             </Link>
           ))}
         </div>
 
         {/* Mobile View All Link */}
-        <div className="mt-8 text-center sm:hidden">
-          <Link
-            href="/shop"
-            className="inline-flex items-center gap-1 text-xs font-bengali font-bold text-doibrand-accent hover:text-doibrand-dark transition-colors"
-          >
-            <span>সকল ক্যাটাগরি দেখুন</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
+        <Link
+          href="/shop"
+          className="sm:hidden mt-4 flex items-center justify-center gap-1 text-sm font-semibold text-doibrand-accent"
+        >
+          সকল ক্যাটাগরি দেখুন
+          <ChevronRight className="w-4 h-4" />
+        </Link>
       </div>
     </section>
   );

@@ -33,7 +33,7 @@ const DEFAULT_ITEMS: CartItem[] = [
     price: 500,
     priceText: "৳ 500",
     image:
-      "https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=300&q=80",
+      "/Product/doi.jpg",
     quantity: 1,
     unit: "১ কেজি সরা",
   },
@@ -43,7 +43,7 @@ const DEFAULT_ITEMS: CartItem[] = [
     price: 1450,
     priceText: "৳ 1,450",
     image:
-      "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=300&q=80",
+      "/Product/placeholder.svg",
     quantity: 1,
     unit: "৯০০ গ্রাম জার",
   },

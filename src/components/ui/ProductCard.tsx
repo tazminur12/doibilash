@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag, CheckCircle2, Plus } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 
 export interface ProductItem {
@@ -30,6 +30,9 @@ export interface ProductCardProps {
   onOrder?: () => void;
 }
 
+const parseAmount = (val: string | number) =>
+  typeof val === "number" ? val : parseInt(String(val).replace(/[^0-9]/g, ""), 10) || 0;
+
 export default function ProductCard({
   product,
   href,
@@ -42,6 +45,13 @@ export default function ProductCard({
   onOrder,
 }: ProductCardProps) {
   const { addItem } = useCart();
+  const [isAdded, setIsAdded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+  }, []);
 
   // Support both individual props and product object
   const currentTitle = title ?? product?.title ?? "বগুড়ার স্পেশাল দই";
@@ -50,7 +60,7 @@ export default function ProductCard({
   const currentImage =
     image ??
     product?.image ??
-    "https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=600&q=80";
+    "/Product/placeholder.svg";
   const currentBadge = badge ?? product?.badge ?? "Hot Sale";
   const currentUnit = unit ?? product?.unit;
   const productHref =
@@ -66,86 +76,130 @@ export default function ProductCard({
     return val.startsWith("৳") ? val : `৳ ${val}`;
   };
 
+  const priceAmount = parseAmount(currentPrice);
+  const originalAmount = currentOriginalPrice ? parseAmount(currentOriginalPrice) : 0;
+  const discountPercent =
+    originalAmount > priceAmount && priceAmount > 0
+      ? Math.round(((originalAmount - priceAmount) / originalAmount) * 100)
+      : 0;
+
   const handleOrder = () => {
     if (onOrder) {
       onOrder();
     } else {
-      const parsedPrice =
-        typeof currentPrice === "number"
-          ? currentPrice
-          : parseInt(String(currentPrice).replace(/[^0-9]/g, ""), 10) || 500;
       addItem({
         id: product?.id ?? currentTitle,
         title: currentTitle,
-        price: parsedPrice,
+        price: priceAmount || 500,
         priceText: formatPrice(currentPrice),
         image: currentImage,
         unit: currentUnit,
       });
     }
+    setIsAdded(true);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setIsAdded(false), 2000);
   };
 
   return (
-    <div className="group relative bg-white border border-stone-200/80 rounded-xl overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
-      {/* Top Image Container */}
-      <Link href={productHref} className="relative aspect-square w-full overflow-hidden bg-stone-100 rounded-t-xl block">
-        <Image
-          src={currentImage}
-          alt={currentTitle}
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-          className="aspect-square w-full object-cover rounded-t-xl transition-transform duration-300 group-hover:scale-105"
-        />
+    <div className="group/card relative flex flex-col rounded-2xl bg-white p-2 sm:p-2.5 ring-1 ring-stone-200/70 shadow-[0_8px_24px_-18px_rgba(53,28,27,0.4)] transition-all duration-300 hover:-translate-y-1 hover:ring-doibrand-gold/50 hover:shadow-[0_22px_40px_-22px_rgba(169,94,53,0.55)]">
+      {/* Image */}
+      <div className="relative">
+        <Link
+          href={productHref}
+          className="relative block aspect-square w-full overflow-hidden rounded-xl bg-[#F5EDE3]"
+        >
+          {imageFailed ? (
+            <span className="absolute inset-0 grid place-items-center bg-linear-to-br from-[#FBEBD2] via-[#F3D7AE] to-[#E2B57C]">
+              <span className="text-5xl font-bold text-white/85 drop-shadow-sm select-none font-bengali">
+                {Array.from(currentTitle)[0]}
+              </span>
+            </span>
+          ) : (
+            <Image
+              src={currentImage}
+              alt={currentTitle}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+              onError={() => setImageFailed(true)}
+              className="object-cover transition-transform duration-700 ease-out group-hover/card:scale-105"
+            />
+          )}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-1/3 bg-linear-to-b from-black/15 to-transparent" />
+        </Link>
 
-        {/* Badge (Top Right) */}
         {currentBadge && (
-          <span className="absolute top-0 right-0 bg-doibrand-accent text-white text-xs px-2 py-1 rounded-bl-lg font-medium shadow-sm z-10">
+          <span className="pointer-events-none absolute top-2 left-2 rounded-full bg-linear-to-r from-doibrand-accent to-doibrand-gold px-2 py-0.5 text-[10px] font-bold text-white shadow-[0_4px_10px_-4px_rgba(169,94,53,0.8)] font-bengali">
             {currentBadge}
           </span>
         )}
-      </Link>
 
-      {/* Middle Content */}
-      <div className="p-4 flex flex-col flex-1 justify-between">
-        <div>
-          {/* Title */}
-          <Link href={productHref} className="block group/title">
-            <h3
-              className="font-bengali text-doibrand-dark font-semibold text-sm md:text-base line-clamp-2 group-hover/title:text-doibrand-accent transition-colors"
-              title={currentTitle}
-            >
-              {currentTitle}
-            </h3>
-          </Link>
+        {/* Quick add (desktop hover) */}
+        <button
+          type="button"
+          onClick={handleOrder}
+          aria-label="Quick add to cart"
+          className="hidden md:grid absolute bottom-2 right-2 w-9 h-9 place-items-center rounded-full bg-white/95 text-doibrand-accent shadow-lg ring-1 ring-doibrand-gold/30 opacity-0 translate-y-2 transition-all duration-300 group-hover/card:opacity-100 group-hover/card:translate-y-0 hover:bg-doibrand-accent hover:text-white cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
 
-          {/* Unit / Weight subtitle if present */}
-          {currentUnit && (
-            <p className="text-[11px] text-gray-500 font-bengali mt-0.5">
-              {currentUnit}
-            </p>
-          )}
+      {/* Content */}
+      <div className="flex flex-1 flex-col px-1 sm:px-1.5 pt-3 pb-1">
+        {currentUnit && (
+          <p className="text-[10px] font-semibold tracking-wide text-doibrand-gold font-bengali">
+            {currentUnit}
+          </p>
+        )}
 
-          {/* Pricing */}
-          <div className="mt-2 flex items-baseline flex-wrap">
-            <span className="text-doibrand-dark font-bold text-base sm:text-lg">
-              {formatPrice(currentPrice)}
+        <Link href={productHref} className="mt-0.5 block">
+          <h3
+            className="font-bengali text-[13px] sm:text-[15px] font-bold leading-snug text-doibrand-dark line-clamp-2 min-h-[2.6em] transition-colors group-hover/card:text-doibrand-accent"
+            title={currentTitle}
+          >
+            {currentTitle}
+          </h3>
+        </Link>
+
+        {/* Pricing */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-base sm:text-lg font-black text-doibrand-accent">
+            {formatPrice(currentPrice)}
+          </span>
+          {currentOriginalPrice && (
+            <span className="text-[11px] sm:text-xs text-stone-400 line-through">
+              {formatPrice(currentOriginalPrice)}
             </span>
-            {currentOriginalPrice && (
-              <span className="text-gray-400 text-xs line-through ml-2">
-                {formatPrice(currentOriginalPrice)}
-              </span>
-            )}
-          </div>
+          )}
+          {discountPercent > 0 && (
+            <span className="ml-auto rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/70">
+              -{discountPercent}%
+            </span>
+          )}
         </div>
 
         {/* Action Button */}
         <button
           type="button"
           onClick={handleOrder}
-          className="w-full bg-white border border-doibrand-gold text-doibrand-gold text-sm font-medium font-bengali rounded-md py-2 mt-3 hover:bg-doibrand-gold hover:text-white transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs active:scale-[0.98]"
+          className={`mt-3 w-full rounded-xl py-2 sm:py-2.5 text-[13px] sm:text-sm font-semibold font-bengali flex items-center justify-center gap-1.5 cursor-pointer transition-all duration-300 active:scale-[0.98] ${
+            isAdded
+              ? "bg-emerald-600 text-white"
+              : "bg-[#FBF1E4] text-doibrand-accent ring-1 ring-doibrand-gold/30 hover:bg-linear-to-r hover:from-doibrand-accent hover:to-doibrand-gold hover:text-white hover:ring-transparent hover:shadow-[0_10px_22px_-12px_rgba(169,94,53,0.9)]"
+          }`}
         >
-          <ShoppingBag className="w-4 h-4" />
-          <span>অর্ডার করুন</span>
+          {isAdded ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              যুক্ত হয়েছে
+            </>
+          ) : (
+            <>
+              <ShoppingBag className="w-4 h-4" />
+              অর্ডার করুন
+            </>
+          )}
         </button>
       </div>
     </div>

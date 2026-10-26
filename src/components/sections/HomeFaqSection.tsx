@@ -1,120 +1,145 @@
 "use client";
 
 import React, { useState } from "react";
-import { HelpCircle, ChevronDown, ChevronUp, MessageCircleQuestion } from "lucide-react";
+import Link from "next/link";
+import { Plus, MessageCircleQuestion, Headset, ArrowRight, ChevronRight } from "lucide-react";
+import { FAQS } from "@/data/faqs";
 
-interface FaqItem {
-  id: number;
-  question: string;
-  answer: string;
-}
+const HOME_FAQS = FAQS.filter((f) => f.featured);
 
-const FAQS: FaqItem[] = [
-  {
-    id: 1,
-    question: "বগুড়ার স্পেশাল সরার দই কতদিন ভালো থাকে এবং কীভাবে সংরক্ষণ করতে হয়?",
-    answer:
-      "আমাদের দই ১০০% প্রাকৃতিক এবং কোনো রাসায়নিক প্রিজারভেটিভ নেই। সাধারণ ফ্রিজে (৪°-৭° সে.) রাখলে ৭ থেকে ১০ দিন পর্যন্ত এর স্বাদ ও সর একদম অক্ষত থাকে। ফ্রিজ থেকে বের করে খাওয়ার ২০ মিনিট আগে রুম টেম্পারেচারে আনলে সবচেয়ে সেরা মিষ্টতা ও সুবাস পাওয়া যায়।",
-  },
-  {
-    id: 2,
-    question: "ডেলিভারির সময় মাটির সরা ভেঙে যাওয়ার কোনো ঝুঁকি থাকে কি?",
-    answer:
-      "একদমই না! আমরা বিশেষ কুশনযুক্ত থার্মোকল ও এয়ার-বাবল র‍্যাপার ব্যবহার করে প্রতিটি মাটির সরা যত্নসহকারে প্যাকেজিং করি। তদুপরি, ডেলিভারির সময় যদি কোনো কারণে পাত্র ভেঙে যায়, আমরা তাৎক্ষণিক বিনামূল্যে সম্পূর্ণ নতুন একটি পাত্র পাঠাই অথবা সম্পূর্ণ অর্থ রিফান্ড করি।",
-  },
-  {
-    id: 3,
-    question: "ঢাকার ভেতরে ও বাইরে ডেলিভারি কত দ্রুত পাওয়া যায়?",
-    answer:
-      "ঢাকা সিটির ভেতরে অর্ডার করার ২৪ ঘণ্টার মধ্যেই ডেলিভারি পৌঁছে দেওয়া হয়। আর ঢাকার বাইরে (সমগ্র বাংলাদেশ) এয়ার-কুলড ফাস্ট কুরিয়ারের মাধ্যমে ৪৮ থেকে ৭২ ঘণ্টার মধ্যে নিরাপদে পৌঁছে দেওয়া হয়।",
-  },
-  {
-    id: 4,
-    question: "ক্যাশ অন ডেলিভারি (COD) পেমেন্ট সুবিধা আছে কি?",
-    answer:
-      "হ্যাঁ, আমাদের সব পণ্যেই ক্যাশ অন ডেলিভারি (Cash on Delivery) সুবিধা রয়েছে। পণ্য হাতে পেয়ে চেক করে ডেলিভারিম্যানকে মূল্য পরিশোধ করতে পারবেন। এছাড়া বিকাশ বা নগদের মাধ্যমেও অগ্রিম নিরাপদ পেমেন্ট করার সুযোগ রয়েছে।",
-  },
-  {
-    id: 5,
-    question: "বিয়ে বা পারিবারিক অনুষ্ঠানে বাল্ক অর্ডারের নিয়ম কী?",
-    answer:
-      "পারিবারিক উৎসব, জন্মদিন কিংবা বিয়ের মতো বড় অনুষ্ঠানে আমরা বিশেষ ডিসকাউন্টে সরাসরি বগুড়ার কারখানা থেকে তাজা সরা সরবরাহ করি। ন্যূনতম ৫০টি সরার ক্ষেত্রে কাস্টম নেম-ট্যাগ ও প্রি-বুকিং সুবিধা উপভোগ করতে পারবেন।",
-  },
-];
+const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
+const toBnNumber = (n: number) => String(n).padStart(2, "0").replace(/\d/g, (d) => BN_DIGITS[Number(d)]);
 
 export default function HomeFaqSection() {
-  const [openId, setOpenId] = useState<number | null>(1);
+  const [openId, setOpenId] = useState<string | null>(HOME_FAQS[0]?.id ?? null);
 
-  const toggleFaq = (id: number) => {
+  const toggleFaq = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   };
 
   return (
-    <section className="w-full py-16 bg-white font-bengali border-t border-stone-200/80">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        
-        {/* Section Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-doibrand-gold text-xs font-bold mb-3 border border-amber-200/60">
-            <MessageCircleQuestion className="w-4 h-4 text-doibrand-gold" />
-            <span>সচরাচর জিজ্ঞাসা ও উত্তর</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-doibrand-dark tracking-tight">
-            সাধারণ জিজ্ঞাসা (FAQ)
+    <section className="w-full font-bengali pb-14 md:pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] gap-6 lg:gap-10 items-start">
+        {/* Intro Panel */}
+        <div className="lg:sticky lg:top-40">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-3 py-1 text-[11px] font-semibold text-doibrand-accent shadow-[0_4px_12px_-8px_rgba(169,94,53,0.6)]">
+            <MessageCircleQuestion className="w-3.5 h-3.5 text-doibrand-gold" />
+            সচরাচর জিজ্ঞাসা ও উত্তর
+          </span>
+          <h2 className="mt-3 text-2xl sm:text-[34px] font-extrabold tracking-tight leading-tight text-doibrand-dark">
+            সাধারণ{" "}
+            <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
+              জিজ্ঞাসা
+            </span>{" "}
+            <span className="text-doibrand-dark/40">(FAQ)</span>
           </h2>
-          <p className="text-xs sm:text-sm text-gray-500 mt-2">
+          <p className="mt-1.5 text-xs sm:text-sm text-stone-500 leading-relaxed">
             দই বিলাসের পণ্য ও সেবা সম্পর্কে গ্রাহকদের প্রায়শই জিজ্ঞাসিত প্রশ্নের উত্তর
           </p>
+
+          {/* Help Card */}
+          <div className="relative mt-6 overflow-hidden rounded-3xl bg-linear-to-br from-[#FFF3E3] via-[#FFFCF7] to-[#F6DDBD] ring-1 ring-doibrand-gold/20 shadow-[0_18px_44px_-28px_rgba(169,94,53,0.55)] p-5 sm:p-6">
+            <div className="pointer-events-none absolute -top-16 -right-12 w-48 h-48 rounded-full bg-[#F2C9A0]/40 blur-3xl" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-doibrand-gold/60 to-transparent" />
+            <div className="relative flex items-start gap-3.5">
+              <span className="shrink-0 w-12 h-12 grid place-items-center rounded-2xl bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent ring-1 ring-white shadow-[0_6px_14px_-8px_rgba(169,94,53,0.6)]">
+                <Headset className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="text-base font-bold text-doibrand-dark">আরও প্রশ্ন আছে?</h3>
+                <p className="mt-1 text-xs leading-relaxed text-stone-500">
+                  আপনার উত্তর খুঁজে না পেলে সরাসরি আমাদের টিমের সাথে যোগাযোগ করুন।
+                </p>
+              </div>
+            </div>
+            <div className="relative mt-5 flex flex-wrap gap-2.5">
+              <Link
+                href="/contact"
+                className="group inline-flex items-center gap-1.5 rounded-full bg-doibrand-dark px-4 py-2.5 text-xs font-bold text-doibrand-light shadow-[0_10px_22px_-12px_rgba(53,28,27,0.8)] hover:bg-doibrand-accent transition-colors"
+              >
+                যোগাযোগ করুন
+                <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/faq"
+                className="inline-flex items-center gap-1 rounded-full bg-white/80 px-4 py-2.5 text-xs font-bold text-doibrand-accent ring-1 ring-doibrand-gold/30 hover:bg-white transition"
+              >
+                সব প্রশ্ন দেখুন
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
         </div>
 
-        {/* Accordion List */}
-        <div className="space-y-3.5">
-          {FAQS.map((faq) => {
+        {/* Accordion */}
+        <div className="space-y-3">
+          {HOME_FAQS.map((faq, idx) => {
             const isOpen = openId === faq.id;
+            const panelId = `faq-panel-${faq.id}`;
+            const buttonId = `faq-button-${faq.id}`;
 
             return (
               <div
                 key={faq.id}
-                className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+                className={`relative overflow-hidden rounded-2xl transition-all duration-300 ${
                   isOpen
-                    ? "bg-amber-50/40 border-doibrand-gold/40 shadow-xs"
-                    : "bg-stone-50/70 border-stone-200 hover:border-stone-300"
+                    ? "bg-white ring-1 ring-doibrand-gold/40 shadow-[0_18px_40px_-26px_rgba(169,94,53,0.6)]"
+                    : "bg-white/60 ring-1 ring-stone-200/70 hover:bg-white hover:ring-doibrand-gold/30"
                 }`}
               >
+                <span
+                  className={`absolute left-0 top-0 bottom-0 w-1 bg-linear-to-b from-doibrand-gold to-doibrand-accent transition-opacity duration-300 ${
+                    isOpen ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+
                 <button
                   type="button"
+                  id={buttonId}
                   onClick={() => toggleFaq(faq.id)}
-                  className="w-full p-5 text-left flex items-center justify-between gap-4 cursor-pointer"
                   aria-expanded={isOpen}
+                  aria-controls={panelId}
+                  className="w-full flex items-center gap-4 p-4 sm:p-5 text-left cursor-pointer"
                 >
-                  <span className="font-bold text-sm sm:text-base text-doibrand-dark leading-snug">
-                    {faq.question}
-                  </span>
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                      isOpen
-                        ? "bg-doibrand-gold text-white"
-                        : "bg-stone-200 text-stone-600"
+                  <span
+                    className={`shrink-0 text-sm font-extrabold tabular-nums transition-colors ${
+                      isOpen ? "text-doibrand-gold" : "text-stone-300"
                     }`}
                   >
-                    {isOpen ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
-                  </div>
+                    {toBnNumber(idx + 1)}
+                  </span>
+                  <span className="flex-1 text-sm sm:text-[15px] font-bold leading-snug text-doibrand-dark">
+                    {faq.question}
+                  </span>
+                  <span
+                    className={`shrink-0 w-8 h-8 grid place-items-center rounded-full transition-all duration-300 ${
+                      isOpen
+                        ? "rotate-45 bg-linear-to-br from-doibrand-accent to-doibrand-gold text-white shadow-[0_6px_14px_-6px_rgba(169,94,53,0.8)]"
+                        : "bg-[#FBF1E4] text-doibrand-accent ring-1 ring-doibrand-gold/25"
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </span>
                 </button>
 
-                {isOpen && (
-                  <div className="px-5 pb-5 pt-1 text-xs sm:text-sm text-gray-600 leading-relaxed border-t border-amber-200/30 animate-in fade-in duration-200">
-                    {faq.answer}
+                <div
+                  id={panelId}
+                  role="region"
+                  aria-labelledby={buttonId}
+                  className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+                    isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    <p className="pl-[3.25rem] sm:pl-[3.75rem] pr-5 sm:pr-16 pb-5 text-xs sm:text-sm leading-relaxed text-stone-600">
+                      {faq.answer}
+                    </p>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
         </div>
-
       </div>
     </section>
   );

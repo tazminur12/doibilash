@@ -37,7 +37,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 500,
     stockStatus: "In Stock",
     image:
-      "https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=150&q=80",
+      "/Product/doi.jpg",
     unit: "১ কেজি সরা",
   },
   {
@@ -49,7 +49,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 950,
     stockStatus: "In Stock",
     image:
-      "https://images.unsplash.com/photo-1628088062854-d1870b4553da?auto=format&fit=crop&w=150&q=80",
+      "/Product/placeholder.svg",
     unit: "৫০০ গ্রাম জার",
   },
   {
@@ -61,7 +61,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 550,
     stockStatus: "In Stock",
     image:
-      "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?auto=format&fit=crop&w=150&q=80",
+      "/Product/placeholder.svg",
     unit: "১ কেজি বক্স",
   },
   {
@@ -73,7 +73,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 420,
     stockStatus: "Out of Stock",
     image:
-      "https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=150&q=80",
+      "/Product/doi.jpg",
     unit: "৫০০ গ্রাম হাঁড়ি",
   },
   {
@@ -85,7 +85,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 600,
     stockStatus: "In Stock",
     image:
-      "https://images.unsplash.com/photo-1599785209707-a456fc1337bb?auto=format&fit=crop&w=150&q=80",
+      "/Product/placeholder.svg",
     unit: "১ কেজি বক্স",
   },
   {
@@ -97,7 +97,7 @@ const INITIAL_PRODUCTS: ProductRecord[] = [
     priceNum: 450,
     stockStatus: "In Stock",
     image:
-      "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=150&q=80",
+      "/Product/laccha_semai.jpg",
     unit: "৫০০ গ্রাম প্যাকেট",
   },
 ];
@@ -175,7 +175,7 @@ export default function AdminProductsPage() {
         priceNum: Number(formPrice),
         stockStatus: formStock,
         image:
-          "https://images.unsplash.com/photo-1571212515416-fef01fc43637?auto=format&fit=crop&w=150&q=80",
+          "/Product/placeholder.svg",
         unit: "১ টি",
       };
       setProducts((prev) => [...prev, newProd]);
