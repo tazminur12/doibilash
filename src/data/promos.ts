@@ -16,6 +16,7 @@ export interface PromoCodeItem {
   minOrder?: number;
   /** Cart must contain at least this many units of products whose title includes `keyword`. */
   requires?: { keyword: string; minQty: number };
+  isActive?: boolean;
 }
 
 export const PROMO_CODES: PromoCodeItem[] = [
@@ -92,6 +93,8 @@ export const PROMO_CODES: PromoCodeItem[] = [
   },
 ];
 
+import { getStoredPromos } from "@/lib/offerStorage";
+
 export const isPromoExpired = (promo: PromoCodeItem, now: number) =>
   promo.expiresAt ? new Date(promo.expiresAt).getTime() < now : false;
 
@@ -112,8 +115,12 @@ export function evaluatePromo(
   const code = rawCode.trim().toUpperCase();
   if (!code) return { ok: false, error: "দয়া করে একটি কুপন কোড লিখুন।" };
 
-  const promo = PROMO_CODES.find((p) => p.code === code);
+  const allPromos = typeof window !== "undefined" ? getStoredPromos() : PROMO_CODES;
+  const promo = allPromos.find((p) => p.code.toUpperCase() === code);
   if (!promo) return { ok: false, error: "কুপন কোডটি সঠিক নয়।" };
+  if ("isActive" in promo && !promo.isActive) {
+    return { ok: false, error: "এই কুপন কোডটি বর্তমানে নিষ্ক্রিয় রয়েছে।" };
+  }
   if (isPromoExpired(promo, ctx.now)) return { ok: false, error: "এই কুপনের মেয়াদ শেষ হয়ে গেছে।" };
   if (promo.minOrder && ctx.subtotal < promo.minOrder) {
     return { ok: false, error: `এই কুপনের জন্য ন্যূনতম ৳${promo.minOrder.toLocaleString("en-US")} টাকার অর্ডার প্রয়োজন।` };

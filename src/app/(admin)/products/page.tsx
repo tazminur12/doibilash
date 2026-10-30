@@ -1,569 +1,440 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Search,
   Plus,
-  Edit,
-  Trash,
-  ChevronLeft,
-  ChevronRight,
+  Edit2,
+  Trash2,
   Package,
-  X,
+  ExternalLink,
+  CheckCircle2,
+  Star,
+  Eye,
+  ArrowUpRight,
+  Filter,
   Check,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
-
-interface ProductRecord {
-  id: string;
-  name: string;
-  nameEn: string;
-  category: string;
-  price: string;
-  priceNum: number;
-  stockStatus: "In Stock" | "Out of Stock";
-  image: string;
-  unit: string;
-}
-
-const INITIAL_PRODUCTS: ProductRecord[] = [
-  {
-    id: "PROD-001",
-    name: "বগুড়ার স্পেশাল সরার দই",
-    nameEn: "Special Bogura Shorar Doi",
-    category: "প্রিমিয়াম দই",
-    price: "৳ ৫০০",
-    priceNum: 500,
-    stockStatus: "In Stock",
-    image:
-      "/Product/doi.jpg",
-    unit: "১ কেজি সরা",
-  },
-  {
-    id: "PROD-002",
-    name: "খাঁটি দানাদার গাওয়া ঘি",
-    nameEn: "Pure Danadar Gawa Ghee",
-    category: "খাঁটি গাওয়া ঘি",
-    price: "৳ ৯৫০",
-    priceNum: 950,
-    stockStatus: "In Stock",
-    image:
-      "/Product/placeholder.svg",
-    unit: "৫০০ গ্রাম জার",
-  },
-  {
-    id: "PROD-003",
-    name: "ঐতিহ্যবাহী ঘি-এ ভাজা মতিচুর লাড্ডু",
-    nameEn: "Traditional Motichoor Laddu",
-    category: "লাড্ডু",
-    price: "৳ ৫৫০",
-    priceNum: 550,
-    stockStatus: "In Stock",
-    image:
-      "/Product/placeholder.svg",
-    unit: "১ কেজি বক্স",
-  },
-  {
-    id: "PROD-004",
-    name: "মাটির হাঁড়ির মিষ্টি দই",
-    nameEn: "Clay Pot Sweet Curd",
-    category: "প্রিমিয়াম দই",
-    price: "৳ ৪২০",
-    priceNum: 420,
-    stockStatus: "Out of Stock",
-    image:
-      "/Product/doi.jpg",
-    unit: "৫০০ গ্রাম হাঁড়ি",
-  },
-  {
-    id: "PROD-005",
-    name: "ঐতিহ্যবাহী নরম স্পঞ্জ রসগোল্লা",
-    nameEn: "Traditional Sponge Rosogolla",
-    category: "ঐতিহ্যবাহী মিষ্টি",
-    price: "৳ ৬০০",
-    priceNum: 600,
-    stockStatus: "In Stock",
-    image:
-      "/Product/placeholder.svg",
-    unit: "১ কেজি বক্স",
-  },
-  {
-    id: "PROD-006",
-    name: "স্পেশাল প্রিমিয়াম লাচ্ছা সেমাই",
-    nameEn: "Special Premium Laccha Semai",
-    category: "লাচ্ছা সেমাই",
-    price: "৳ ৪৫০",
-    priceNum: 450,
-    stockStatus: "In Stock",
-    image:
-      "/Product/laccha_semai.jpg",
-    unit: "৫০০ গ্রাম প্যাকেট",
-  },
-];
+import {
+  StoredProduct,
+  getStoredProducts,
+  deleteProduct,
+} from "@/lib/productStorage";
+import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<ProductRecord[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<StoredProduct[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<ProductRecord | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Form State
-  const [formName, setFormName] = useState("");
-  const [formCategory, setFormCategory] = useState("প্রিমিয়াম দই");
-  const [formPrice, setFormPrice] = useState("");
-  const [formStock, setFormStock] = useState<"In Stock" | "Out of Stock">("In Stock");
+  // Load from storage
+  useEffect(() => {
+    setProducts(getStoredProducts());
+  }, []);
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.includes(searchQuery)
-  );
-
-  const openAddModal = () => {
-    setEditingProduct(null);
-    setFormName("");
-    setFormCategory("প্রিমিয়াম দই");
-    setFormPrice("");
-    setFormStock("In Stock");
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (prod: ProductRecord) => {
-    setEditingProduct(prod);
-    setFormName(prod.name);
-    setFormCategory(prod.category);
-    setFormPrice(String(prod.priceNum));
-    setFormStock(prod.stockStatus);
-    setIsModalOpen(true);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const handleDelete = (id: string, name: string) => {
     if (confirm(`আপনি কি "${name}" পণ্যটি তালিকা থেকে মুছে ফেলতে চান?`)) {
-      setProducts((prev) => prev.filter((item) => item.id !== id));
+      const updated = deleteProduct(id);
+      setProducts(updated);
+      showToast(`"${name}" পণ্য সফলভাবে মুছে ফেলা হয়েছে`);
     }
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim() || !formPrice) return;
+  // Filter products
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.includes(searchQuery);
+    const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
+    const matchesStock = stockFilter === "all" || p.stockStatus === stockFilter;
+    return matchesSearch && matchesCategory && matchesStock;
+  });
 
-    if (editingProduct) {
-      setProducts((prev) =>
-        prev.map((item) =>
-          item.id === editingProduct.id
-            ? {
-                ...item,
-                name: formName,
-                category: formCategory,
-                price: `৳ ${Number(formPrice).toLocaleString()}`,
-                priceNum: Number(formPrice),
-                stockStatus: formStock,
-              }
-            : item
-        )
-      );
-    } else {
-      const newProd: ProductRecord = {
-        id: `PROD-${Date.now().toString().slice(-3)}`,
-        name: formName,
-        nameEn: formName,
-        category: formCategory,
-        price: `৳ ${Number(formPrice).toLocaleString()}`,
-        priceNum: Number(formPrice),
-        stockStatus: formStock,
-        image:
-          "/Product/placeholder.svg",
-        unit: "১ টি",
-      };
-      setProducts((prev) => [...prev, newProd]);
-    }
+  // Unique categories for filter dropdown
+  const uniqueCategories = Array.from(new Set(products.map((p) => p.category)));
 
-    setIsModalOpen(false);
-  };
+  // Metrics
+  const inStockCount = products.filter((p) => p.stockStatus === "In Stock").length;
+  const outOfStockCount = products.filter((p) => p.stockStatus === "Out of Stock").length;
+  const featuredCount = products.filter((p) => p.isFeatured).length;
 
   return (
-    <div className="p-6 font-bengali space-y-6">
+    <div className="font-bengali text-doibrand-dark space-y-6 pb-16">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 animate-header-fade-up bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-doibrand-gold/40 text-xs sm:text-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* ── 1. Header & Actions ─────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
         <div>
-          <h1 className="font-bengali text-3xl font-bold text-gray-800 tracking-tight">
-            পণ্য তালিকা
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            দই বিলাসের সকল পণ্যের স্টক, মূল্য এবং বিবরণ পরিচালনা করুন
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-doibrand-dark">
+              পণ্য তালিকা ব্যবস্থাপনা
+            </h1>
+            <span className="bg-amber-100 text-doibrand-dark text-xs font-bold px-2.5 py-0.5 rounded-full font-sans">
+              {toBnDigits(products.length)} টি পণ্য
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            দই বিলাসের সকল পণ্যের স্টক, মূল্য, ছবি এবং বিবরণ নিয়ন্ত্রণ করুন।
           </p>
         </div>
 
-        {/* Right: Search Input + Add New Product Button */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Search Input */}
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="পণ্য খুঁজুন..."
-              className="w-full sm:w-64 border border-gray-200 focus:border-doibrand-gold ring-0 rounded-lg pl-10 pr-4 py-2 text-xs sm:text-sm font-bengali text-gray-800 placeholder-gray-400 outline-none transition-colors bg-white shadow-xs"
-            />
-            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+        {/* Right: '+ নতুন পণ্য যুক্ত করুন' Button (Navigates to new page!) */}
+        <Link
+          href="/admin/products/new"
+          className="bg-linear-to-r from-doibrand-dark via-[#432322] to-doibrand-accent hover:from-doibrand-accent hover:to-doibrand-gold text-white px-5 py-2.5 rounded-xl transition-all font-bold flex items-center gap-2 shadow-md hover:shadow-lg cursor-pointer self-start sm:self-auto text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ নতুন পণ্য যুক্ত করুন</span>
+        </Link>
+      </div>
 
-          {/* '+ নতুন পণ্য যুক্ত করুন' Button */}
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="bg-doibrand-dark text-white hover:bg-doibrand-gold px-4 py-2 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-sm text-xs sm:text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>+ নতুন পণ্য যুক্ত করুন</span>
-          </button>
+      {/* ── 2. Top Metric Cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">মোট পণ্য</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-doibrand-gold flex items-center justify-center">
+              <Package className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-doibrand-dark mt-2 font-sans">
+            {products.length}
+          </p>
+          <span className="text-[11px] text-stone-500">ক্যাটালগভুক্ত সকল আইটেম</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">স্টকে উপলব্ধ</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Check className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-emerald-700 mt-2 font-sans">
+            {inStockCount}
+          </p>
+          <span className="text-[11px] text-emerald-600 font-medium">অর্ডারের জন্য প্রস্তুত</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">স্টক শেষ (Out of Stock)</span>
+            <div className="w-8 h-8 rounded-xl bg-red-50 text-red-500 flex items-center justify-center">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-red-600 mt-2 font-sans">
+            {outOfStockCount}
+          </p>
+          <span className="text-[11px] text-red-500 font-medium">পুনরায় স্টক প্রয়োজন</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">ফিচার্ড পণ্য</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100/60 text-amber-700 flex items-center justify-center">
+              <Star className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-doibrand-dark mt-2 font-sans">
+            {featuredCount}
+          </p>
+          <span className="text-[11px] text-amber-600 font-medium">হোমপেজে হাইলাইটেড</span>
         </div>
       </div>
 
-      {/* ── 2. Products Data Table (Desktop View: hidden md:block) ──────── */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+      {/* ── 3. Search & Filter Bar ───────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs">
+        <div className="relative w-full md:w-80">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="পণ্যের নাম, ক্যাটাগরি বা স্লাগ খুঁজুন..."
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-doibrand-gold/40"
+          />
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* Category Filter */}
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="px-3 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50 text-stone-700 focus:outline-none focus:ring-2 focus:ring-doibrand-gold/40 font-bengali"
+          >
+            <option value="all">সকল ক্যাটাগরি</option>
+            {uniqueCategories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
+          {/* Stock Filter */}
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="px-3 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50 text-stone-700 focus:outline-none focus:ring-2 focus:ring-doibrand-gold/40"
+          >
+            <option value="all">সকল স্টক অবস্থা</option>
+            <option value="In Stock">স্টকে আছে</option>
+            <option value="Out of Stock">স্টক শেষ</option>
+          </select>
+
+          <span className="text-xs text-stone-500 pl-1 font-sans">
+            ফিল্টার: <strong>{filteredProducts.length}</strong>
+          </span>
+        </div>
+      </div>
+
+      {/* ── 4. Desktop Products Table ───────────────────────────────────── */}
+      <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-stone-200/80 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            {/* Table Header */}
-            <thead className="bg-gray-50 text-gray-600 font-semibold text-sm py-4 px-6 text-left border-b border-gray-200">
+            <thead className="bg-[#FAF8F5] text-stone-600 font-bold text-xs py-4 px-6 border-b border-stone-200/80">
               <tr>
-                <th className="py-4 px-6 text-left w-20">Image</th>
-                <th className="py-4 px-6 text-left">Product Name</th>
-                <th className="py-4 px-6 text-left">Category</th>
-                <th className="py-4 px-6 text-left">Price</th>
-                <th className="py-4 px-6 text-left">Stock Status</th>
-                <th className="py-4 px-6 text-right">Actions</th>
+                <th className="py-4 px-6">ছবি</th>
+                <th className="py-4 px-6">পণ্যের নাম ও বিবরণ</th>
+                <th className="py-4 px-6">ক্যাটাগরি</th>
+                <th className="py-4 px-6">মূল্য</th>
+                <th className="py-4 px-6">স্টক অবস্থা</th>
+                <th className="py-4 px-6 text-right">একশন</th>
               </tr>
             </thead>
 
-            {/* Table Body */}
-            <tbody className="divide-y divide-gray-100 text-gray-800">
-              {filteredProducts.length > 0 ? (
+            <tbody className="divide-y divide-stone-100 text-stone-800">
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-stone-400 text-sm">
+                    কোনো পণ্য খুঁজে পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
                 filteredProducts.map((prod) => {
                   const isInStock = prod.stockStatus === "In Stock";
-
                   return (
                     <tr
                       key={prod.id}
-                      className="hover:bg-stone-50/70 transition-colors group"
+                      className="hover:bg-amber-50/30 transition-colors group"
                     >
                       {/* Image Column */}
                       <td className="py-4 px-6">
-                        <div className="relative w-12 h-12 rounded-md overflow-hidden object-cover border border-gray-100 bg-stone-50 shrink-0">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden relative bg-stone-100 border border-stone-200 shadow-2xs group-hover:scale-105 transition-transform">
                           <Image
-                            src={prod.image}
+                            src={prod.image || "/Product/doi.jpg"}
                             alt={prod.name}
                             fill
-                            sizes="48px"
+                            unoptimized={prod.image?.startsWith("data:") || prod.image?.startsWith("blob:")}
                             className="object-cover"
                           />
                         </div>
                       </td>
 
-                      {/* Product Name Column */}
+                      {/* Name & Unit Column */}
                       <td className="py-4 px-6">
-                        <div className="font-bold text-doibrand-dark text-sm">
-                          {prod.name}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-doibrand-dark text-base">
+                            {prod.name}
+                          </span>
+                          {prod.badge && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold font-sans">
+                              <Star className="w-2.5 h-2.5 fill-current" />
+                              {prod.badge}
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-gray-400 font-sans mt-0.5">
+                        <div className="text-xs text-stone-400 font-sans mt-0.5">
+                          {prod.nameEn}
+                        </div>
+                        <div className="text-[11px] text-stone-500 mt-0.5 font-sans">
                           {prod.unit}
                         </div>
                       </td>
 
                       {/* Category Column */}
-                      <td className="py-4 px-6 text-xs text-gray-600 font-medium">
-                        <span className="bg-stone-100 text-stone-700 px-2.5 py-1 rounded-md">
+                      <td className="py-4 px-6">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 text-xs font-semibold">
                           {prod.category}
                         </span>
                       </td>
 
                       {/* Price Column */}
-                      <td className="py-4 px-6 font-bold font-sans text-doibrand-accent text-base">
-                        {prod.price}
+                      <td className="py-4 px-6">
+                        <div className="font-bold font-sans text-doibrand-accent text-base">
+                          ৳ {prod.price.toLocaleString("en-US")}
+                        </div>
+                        {prod.originalPrice && (
+                          <div className="text-xs text-stone-400 line-through font-sans">
+                            ৳ {prod.originalPrice.toLocaleString("en-US")}
+                          </div>
+                        )}
                       </td>
 
-                      {/* Stock Status Badges */}
+                      {/* Stock Column */}
                       <td className="py-4 px-6">
                         {isInStock ? (
-                          <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-medium inline-flex items-center">
-                            In Stock
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2.5 py-1 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            স্টকে আছে
                           </span>
                         ) : (
-                          <span className="bg-red-100 text-red-700 text-xs px-2 py-1 rounded-full font-medium inline-flex items-center">
-                            Out of Stock
+                          <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 text-xs font-semibold px-2.5 py-1 rounded-full">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                            স্টক শেষ
                           </span>
                         )}
                       </td>
 
                       {/* Actions Column */}
                       <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Edit Button */}
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(prod)}
-                            title="সম্পাদনা করুন"
-                            className="text-blue-500 hover:bg-blue-50 p-2 rounded-md cursor-pointer transition-colors"
+                        <div className="flex items-center justify-end gap-2">
+                          {/* View in Store */}
+                          <Link
+                            href={`/products/${prod.slug}`}
+                            target="_blank"
+                            title="ওয়েবসাইটে দেখুন"
+                            className="p-2 rounded-xl text-stone-500 hover:text-doibrand-accent hover:bg-stone-100 transition-colors"
                           >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+
+                          {/* Edit Button -> Navigates to full new/edit page! */}
+                          <Link
+                            href={`/admin/products/new?id=${prod.id}`}
+                            title="সম্পাদনা করুন"
+                            className="p-2 rounded-xl text-stone-500 hover:text-doibrand-gold hover:bg-amber-50 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Link>
 
                           {/* Delete Button */}
                           <button
                             type="button"
                             onClick={() => handleDelete(prod.id, prod.name)}
                             title="মুছে ফেলুন"
-                            className="text-red-500 hover:bg-red-50 p-2 rounded-md cursor-pointer transition-colors"
+                            className="p-2 rounded-xl text-stone-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                           >
-                            <Trash className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
                     </tr>
                   );
                 })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
-                    <Package className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                    <span>কোনো পণ্য পাওয়া যায়নি</span>
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ── 3. Mobile View Handling (block md:hidden) ─────────────────── */}
-      <div className="block md:hidden space-y-4 mt-6">
+      {/* ── 5. Mobile View: Responsive Product Cards ───────────────────── */}
+      <div className="block md:hidden grid grid-cols-1 gap-4">
         {filteredProducts.map((prod) => {
           const isInStock = prod.stockStatus === "In Stock";
-
           return (
             <div
               key={prod.id}
-              className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm flex flex-col justify-between gap-3"
+              className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-3.5"
             >
-              {/* Product Info Row */}
-              <div className="flex items-start gap-3.5">
-                {/* Product Image on Left */}
-                <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-100 bg-stone-50 shrink-0">
+              <div className="flex items-center gap-3.5">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden relative bg-stone-100 border border-stone-200 shrink-0">
                   <Image
-                    src={prod.image}
+                    src={prod.image || "/Product/doi.jpg"}
                     alt={prod.name}
                     fill
-                    sizes="64px"
+                    unoptimized={prod.image?.startsWith("data:") || prod.image?.startsWith("blob:")}
                     className="object-cover"
                   />
                 </div>
 
-                {/* Name & Price on Right */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-bold text-sm text-doibrand-dark truncate">
-                    {prod.name}
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{prod.category}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="font-bold font-sans text-sm text-doibrand-accent">
-                      {prod.price}
-                    </span>
-                    {isInStock ? (
-                      <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-medium">
-                        In Stock
-                      </span>
-                    ) : (
-                      <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-full font-medium">
-                        Out of Stock
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-bold text-base text-doibrand-dark truncate">
+                      {prod.name}
+                    </h3>
+                    {prod.badge && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0 font-sans">
+                        {prod.badge}
                       </span>
                     )}
+                  </div>
+                  <p className="text-xs text-stone-400 font-sans">{prod.nameEn}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-sm font-bold text-doibrand-accent font-sans">
+                      ৳ {prod.price}
+                    </span>
+                    <span className="text-[11px] text-stone-500">• {prod.unit}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Action buttons at bottom right corner */}
-              <div className="pt-2 border-t border-gray-50 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(prod)}
-                  className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md font-semibold transition-colors"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  <span>এডিট</span>
-                </button>
+              {/* Status and category row */}
+              <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
+                <span className="text-stone-600 font-semibold">{prod.category}</span>
+                {isInStock ? (
+                  <span className="bg-emerald-50 text-emerald-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    স্টকে আছে
+                  </span>
+                ) : (
+                  <span className="bg-red-50 text-red-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-red-200">
+                    স্টক শেষ
+                  </span>
+                )}
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleDelete(prod.id, prod.name)}
-                  className="flex items-center gap-1 text-xs text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md font-semibold transition-colors"
+              {/* Actions Footer */}
+              <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                <Link
+                  href={`/products/${prod.slug}`}
+                  target="_blank"
+                  className="text-xs text-doibrand-accent hover:underline flex items-center gap-1"
                 >
-                  <Trash className="w-3.5 h-3.5" />
-                  <span>মুছুন</span>
-                </button>
+                  <span>স্টোরে দেখুন</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/admin/products/new?id=${prod.id}`}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-50"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>এডিট</span>
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(prod.id, prod.name)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-red-100 bg-red-50 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>ডিলিট</span>
+                  </button>
+                </div>
               </div>
             </div>
           );
         })}
       </div>
-
-      {/* ── 4. Pagination ──────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
-        <p className="text-xs text-gray-500">
-          সর্বমোট <strong className="font-bold text-gray-800">{filteredProducts.length}</strong> টি পণ্যের মধ্যে{" "}
-          <strong className="font-bold text-gray-800">১-৬</strong> দেখানো হচ্ছে
-        </p>
-
-        <div className="flex items-center gap-1.5">
-          {/* Previous Button */}
-          <button
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span>Previous</span>
-          </button>
-
-          {/* Page Numbers */}
-          <button
-            type="button"
-            onClick={() => setCurrentPage(1)}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              currentPage === 1
-                ? "bg-doibrand-dark text-white rounded-md"
-                : "text-gray-600 hover:bg-gray-100 rounded-md"
-            }`}
-          >
-            1
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage(2)}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              currentPage === 2
-                ? "bg-doibrand-dark text-white rounded-md"
-                : "text-gray-600 hover:bg-gray-100 rounded-md"
-            }`}
-          >
-            2
-          </button>
-
-          {/* Next Button */}
-          <button
-            type="button"
-            disabled={currentPage === 2}
-            onClick={() => setCurrentPage((p) => Math.min(2, p + 1))}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Modal: Add / Edit Product ───────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <h3 className="font-bold text-lg text-doibrand-dark">
-                {editingProduct ? "পণ্য সম্পাদনা করুন" : "নতুন পণ্য যুক্ত করুন"}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProduct} className="py-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  পণ্যের নাম *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="যেমন: বগুড়ার স্পেশাল সরার দই"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold font-bengali"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  ক্যাটাগরি *
-                </label>
-                <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold font-bengali bg-white"
-                >
-                  <option value="প্রিমিয়াম দই">প্রিমিয়াম দই</option>
-                  <option value="খাঁটি গাওয়া ঘি">খাঁটি গাওয়া ঘি</option>
-                  <option value="লাড্ডু">লাড্ডু</option>
-                  <option value="ঐতিহ্যবাহী মিষ্টি">ঐতিহ্যবাহী মিষ্টি</option>
-                  <option value="লাচ্ছা সেমাই">লাচ্ছা সেমাই</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  মূল্য (টাকা) *
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="1"
-                  value={formPrice}
-                  onChange={(e) => setFormPrice(e.target.value)}
-                  placeholder="যেমন: ৫০০"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm font-sans focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  স্টক অবস্থা *
-                </label>
-                <select
-                  value={formStock}
-                  onChange={(e) =>
-                    setFormStock(e.target.value as "In Stock" | "Out of Stock")
-                  }
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold font-sans bg-white"
-                >
-                  <option value="In Stock">In Stock (মজুদ আছে)</option>
-                  <option value="Out of Stock">Out of Stock (স্টক শেষ)</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-1/2 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-2.5 bg-doibrand-dark text-white rounded-xl text-sm font-semibold hover:bg-stone-900 transition-colors cursor-pointer"
-                >
-                  {editingProduct ? "সংরক্ষণ করুন" : "যুক্ত করুন"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

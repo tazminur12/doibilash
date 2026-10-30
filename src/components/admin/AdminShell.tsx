@@ -12,7 +12,7 @@ export default function AdminShell({
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-50 font-bengali">
+    <div className="flex min-h-screen bg-[#FAF8F5] font-bengali text-stone-900 antialiased selection:bg-[#C48A4E]/30 selection:text-[#351C1B]">
       {/* Sidebar (Desktop fixed + Mobile drawer) */}
       <AdminSidebar
         isOpen={isMobileSidebarOpen}
@@ -27,9 +27,9 @@ export default function AdminShell({
         />
 
         {/* Dynamic Admin Page View */}
-        <article className="p-6 overflow-y-auto flex-1">
+        <main className="p-4 sm:p-6 lg:p-8 overflow-y-auto flex-1">
           {children}
-        </article>
+        </main>
       </div>
     </div>
   );

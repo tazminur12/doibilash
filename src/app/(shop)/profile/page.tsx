@@ -34,6 +34,7 @@ import {
   Package,
 } from "lucide-react";
 import { toBnDigits } from "@/lib/bangla";
+import { getCurrentUser, clearCurrentUser } from "@/lib/authStorage";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -338,6 +339,29 @@ export default function ProfileDashboard() {
     email: "rahim.uddin@example.com",
     phone: "+880 1712-345678",
   });
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      setProfileData({
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      });
+      if (user.address) {
+        setAddresses((prev) => ({
+          ...prev,
+          shipping: {
+            ...prev.shipping,
+            name: user.name,
+            phone: user.phone,
+            fullAddress: user.address || prev.shipping.fullAddress,
+            city: user.city || prev.shipping.city,
+          },
+        }));
+      }
+    }
+  }, []);
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passwordError, setPasswordError] = useState("");
 
@@ -1050,6 +1074,7 @@ export default function ProfileDashboard() {
             <button
               type="button"
               onClick={() => {
+                clearCurrentUser();
                 setShowLogoutModal(false);
                 router.push("/login");
               }}

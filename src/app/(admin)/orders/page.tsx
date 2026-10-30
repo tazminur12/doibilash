@@ -1,439 +1,522 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Eye,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  ShoppingBag,
-  Clock,
+  Plus,
+  Edit2,
+  Trash2,
+  Printer,
+  Search,
   CheckCircle2,
-  XCircle,
+  Clock,
+  Truck,
+  Check,
   AlertCircle,
-  X,
+  XCircle,
+  ShoppingBag,
+  Package,
+  ExternalLink,
+  ChevronRight,
   Phone,
   MapPin,
   Calendar,
+  X,
+  FileText,
 } from "lucide-react";
-
-type OrderStatus = "Pending" | "Processing" | "Delivered" | "Cancelled";
-
-interface OrderRecord {
-  id: string;
-  date: string;
-  customer: string;
-  phone: string;
-  address: string;
-  items: string;
-  amount: string;
-  status: OrderStatus;
-}
-
-const DUMMY_ORDERS: OrderRecord[] = [
-  {
-    id: "#DB-98421",
-    date: "১৬ অক্টোবর, ২০২৬",
-    customer: "তানভীর আহমেদ",
-    phone: "01712-345678",
-    address: "সেক্টর ৪, উত্তরা, ঢাকা",
-    items: "বগুড়ার স্পেশাল সরার দই (২টি)",
-    amount: "৳ ১,৫০০",
-    status: "Processing",
-  },
-  {
-    id: "#DB-98420",
-    date: "১৬ অক্টোবর, ২০২৬",
-    customer: "শাহরিয়ার কবীর",
-    phone: "01823-456789",
-    address: "রোড ২৭, ধানমন্ডি, ঢাকা",
-    items: "খাঁটি দানাদার গাওয়া ঘি (১টি)",
-    amount: "৳ ৯৫০",
-    status: "Pending",
-  },
-  {
-    id: "#DB-98419",
-    date: "১৫ অক্টোবর, ২০২৬",
-    customer: "ফারহানা ইয়াসমিন",
-    phone: "01934-567890",
-    address: "রোড ৭১, গুলশান-২, ঢাকা",
-    items: "ঐতিহ্যবাহী রসগোল্লা (৩টি)",
-    amount: "৳ ১,৬৫০",
-    status: "Delivered",
-  },
-  {
-    id: "#DB-98418",
-    date: "১৫ অক্টোবর, ২০২৬",
-    customer: "মাহমুদুল হাসান",
-    phone: "01545-678901",
-    address: "ব্লক সি, মিরপুর-১০, ঢাকা",
-    items: "স্পেশাল চমচম (২টি)",
-    amount: "৳ ৮৮০",
-    status: "Delivered",
-  },
-  {
-    id: "#DB-98417",
-    date: "১৪ অক্টোবর, ২০২৬",
-    customer: "নাজমুল সাকিব",
-    phone: "01656-789012",
-    address: "রোড ১১, বনানী, ঢাকা",
-    items: "মাটির হাঁড়ির মিষ্টি দই (১টি)",
-    amount: "৳ ৪২০",
-    status: "Cancelled",
-  },
-  {
-    id: "#DB-98416",
-    date: "১৪ অক্টোবর, ২০২৬",
-    customer: "আব্দুল্লাহ আল মামুন",
-    phone: "01767-890123",
-    address: "জেলখানা মোড়, বগুড়া সদর, বগুড়া",
-    items: "প্রিমিয়াম লাচ্ছা সেমাই (৪টি)",
-    amount: "৳ ২,২০০",
-    status: "Processing",
-  },
-];
-
-const STATUS_BADGES: Record<
+import {
+  StoredOrder,
   OrderStatus,
-  { labelBn: string; classes: string }
-> = {
-  Pending: {
-    labelBn: "Pending",
-    classes: "bg-yellow-100 text-yellow-700",
-  },
-  Processing: {
-    labelBn: "Processing",
-    classes: "bg-blue-100 text-blue-700",
-  },
-  Delivered: {
-    labelBn: "Delivered",
-    classes: "bg-green-100 text-green-700",
-  },
-  Cancelled: {
-    labelBn: "Cancelled",
-    classes: "bg-red-100 text-red-700",
-  },
-};
+  STATUS_META,
+  getStoredOrders,
+  deleteOrder,
+  updateOrderStatus,
+} from "@/lib/orderStorage";
+import OrderInvoice from "@/components/admin/OrderInvoice";
+import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminOrdersPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("All");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [selectedOrder, setSelectedOrder] = useState<OrderRecord | null>(null);
+  const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusTab, setStatusTab] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<StoredOrder | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Filter orders
-  const filteredOrders = DUMMY_ORDERS.filter((order) => {
-    if (statusFilter === "All") return true;
-    return order.status === statusFilter;
+  useEffect(() => {
+    setOrders(getStoredOrders());
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm(`আপনি কি "${id}" অর্ডারটি মুছে ফেলতে চান?`)) {
+      const updated = deleteOrder(id);
+      setOrders(updated);
+      showToast(`অর্ডার #${id} সফলভাবে মুছে ফেলা হয়েছে`);
+    }
+  };
+
+  // Filtered orders
+  const filteredOrders = orders.filter((order) => {
+    const matchesSearch =
+      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      order.customerPhone.includes(searchQuery) ||
+      order.shippingAddress.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusTab === "all" || order.status === statusTab;
+    const matchesPayment = paymentFilter === "all" || order.paymentMethod === paymentFilter;
+    return matchesSearch && matchesStatus && matchesPayment;
   });
 
+  // Metrics
+  const pendingCount = orders.filter((o) => o.status === "Pending").length;
+  const processingCount = orders.filter((o) => o.status === "Processing").length;
+  const shippedCount = orders.filter((o) => o.status === "Shipped").length;
+  const deliveredCount = orders.filter((o) => o.status === "Delivered").length;
+  const totalRevenue = orders
+    .filter((o) => o.status === "Delivered" || o.paymentStatus === "Paid")
+    .reduce((acc, o) => acc + o.totalAmount, 0);
+
   return (
-    <div className="p-6 font-bengali space-y-6">
-      {/* ── 1. Header & Filters ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-gray-100">
+    <div className="font-bengali text-doibrand-dark space-y-6 pb-16">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 animate-header-fade-up bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-doibrand-gold/40 text-xs sm:text-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* ── 1. Top Header & '+ ম্যানুয়াল অর্ডার তৈরি করুন' Button ─────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
         <div>
-          <h1 className="font-bengali text-3xl font-bold text-gray-800 tracking-tight">
-            অর্ডারসমূহ
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            দই বিলাসের চলমান ও পূর্ববর্তী সকল অর্ডারের তালিকা পর্যবেক্ষণ ও পরিচালনা করুন
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-doibrand-dark">
+              অর্ডারসমূহ ও ইনভয়েস পরিচালনা
+            </h1>
+            <span className="bg-amber-100 text-doibrand-dark text-xs font-bold px-2.5 py-0.5 rounded-full font-sans">
+              {toBnDigits(orders.length)} টি অর্ডার
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            দই বিলাসের অনলাইন ও অফলাইন সকল অর্ডারের স্টক, ডেলিভারি ট্র্যাকিং ও ইনভয়েস প্রিন্ট।
           </p>
         </div>
 
-        {/* Dropdown Filter for Order Status */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
+        {/* Primary Manual Order Action Button */}
+        <Link
+          href="/admin/orders/new"
+          className="bg-linear-to-r from-doibrand-dark via-[#432322] to-doibrand-accent hover:from-doibrand-accent hover:to-doibrand-gold text-white px-5 py-2.5 rounded-xl transition-all font-bold flex items-center gap-2 shadow-md hover:shadow-lg cursor-pointer self-start sm:self-auto text-sm"
+        >
+          <Plus className="w-4 h-4" />
+          <span>+ ম্যানুয়াল নতুন অর্ডার তৈরি করুন</span>
+        </Link>
+      </div>
+
+      {/* ── 2. Top Executive Metric Cards ───────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">মোট অর্ডার</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-doibrand-gold flex items-center justify-center">
+              <ShoppingBag className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-bold text-doibrand-dark mt-1.5 font-sans">{orders.length}</p>
+          <span className="text-[10px] text-stone-400">সকল গ্রাহকের অর্ডার</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">অপেক্ষমান</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-100/60 text-amber-700 flex items-center justify-center">
+              <Clock className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-bold text-amber-700 mt-1.5 font-sans">{pendingCount}</p>
+          <span className="text-[10px] text-amber-600 font-medium">নিশ্চিতকরণ বাকি</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">প্রস্তুত হচ্ছে</span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <Package className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-bold text-blue-700 mt-1.5 font-sans">{processingCount}</p>
+          <span className="text-[10px] text-blue-600 font-medium">প্যাকেজিং প্রক্রিয়াধীন</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">সফল ডেলিভারি</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Check className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <p className="text-xl font-bold text-emerald-700 mt-1.5 font-sans">{deliveredCount}</p>
+          <span className="text-[10px] text-emerald-600 font-medium">গ্রাহক গ্রহণ করেছেন</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">পরিশোধিত আয়</span>
+            <span className="text-xs font-bold text-doibrand-accent font-sans">৳</span>
+          </div>
+          <p className="text-xl font-bold text-doibrand-accent mt-1.5 font-sans">
+            ৳{totalRevenue.toLocaleString("en-US")}
+          </p>
+          <span className="text-[10px] text-stone-400">মোট সংগৃহীত রেভিনিউ</span>
+        </div>
+      </div>
+
+      {/* ── 3. Status Tabs & Filters ────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs">
+        {/* Status Pills */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
+          {[
+            { id: "all", label: "সকল অর্ডার", count: orders.length },
+            { id: "Pending", label: "অপেক্ষমান", count: pendingCount },
+            { id: "Processing", label: "প্রস্তুত হচ্ছে", count: processingCount },
+            { id: "Shipped", label: "ডেলিভারিতে আছে", count: shippedCount },
+            { id: "Delivered", label: "সম্পন্ন", count: deliveredCount },
+          ].map((tab) => {
+            const isActive = statusTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusTab(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  isActive
+                    ? "bg-doibrand-dark text-white shadow-2xs"
+                    : "text-stone-600 hover:bg-stone-100"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-sans ${
+                    isActive ? "bg-white/20 text-white" : "bg-stone-200/70 text-stone-700"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search Input & Payment Filter */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 md:w-64">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="অর্ডার নং, নাম বা ফোন..."
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-9 pr-3 py-2 text-xs text-stone-800 focus:outline-none focus:ring-2 focus:ring-doibrand-gold/40"
+            />
+            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          </div>
+
           <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="border border-gray-200 focus:ring-2 focus:ring-doibrand-gold focus:border-transparent rounded-lg px-4 py-2.5 text-xs sm:text-sm font-bengali bg-white text-gray-700 shadow-xs outline-none cursor-pointer"
+            value={paymentFilter}
+            onChange={(e) => setPaymentFilter(e.target.value)}
+            className="px-2.5 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50 text-stone-700 focus:outline-none"
           >
-            <option value="All">সকল অর্ডার (All)</option>
-            <option value="Pending">অপেক্ষমান (Pending)</option>
-            <option value="Processing">প্রসেসিং (Processing)</option>
-            <option value="Delivered">ডেলিভারড (Delivered)</option>
-            <option value="Cancelled">বাতিলকৃত (Cancelled)</option>
+            <option value="all">পেমেন্ট মেথড</option>
+            <option value="Cash on Delivery">ক্যাশ অন ডেলিভারি</option>
+            <option value="bKash">বিকাশ (bKash)</option>
+            <option value="Nagad">নগদ (Nagad)</option>
           </select>
         </div>
       </div>
 
-      {/* ── 2. Desktop Orders Data Table (Hidden on Mobile) ───────────── */}
-      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+      {/* ── 4. Desktop Orders Table ─────────────────────────────────────── */}
+      <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-stone-200/80 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            {/* Table Header */}
-            <thead className="bg-gray-50 text-gray-600 font-semibold text-sm border-b border-gray-200">
+            <thead className="bg-[#FAF8F5] text-stone-600 font-bold text-xs py-4 px-6 border-b border-stone-200/80">
               <tr>
-                <th className="py-4 px-6 text-left">Order ID</th>
-                <th className="py-4 px-6 text-left">Date</th>
-                <th className="py-4 px-6 text-left">Customer</th>
-                <th className="py-4 px-6 text-left">Amount</th>
-                <th className="py-4 px-6 text-left">Status</th>
-                <th className="py-4 px-6 text-center">Action</th>
+                <th className="py-4 px-6">অর্ডার ও তারিখ</th>
+                <th className="py-4 px-6">গ্রাহকের নাম ও ফোন</th>
+                <th className="py-4 px-6">পণ্যের বিবরণ</th>
+                <th className="py-4 px-6">মোট প্রদেয়</th>
+                <th className="py-4 px-6">পেমেন্ট</th>
+                <th className="py-4 px-6">অর্ডার স্ট্যাটাস</th>
+                <th className="py-4 px-6 text-right">একশন</th>
               </tr>
             </thead>
 
-            {/* Table Body */}
-            <tbody className="divide-y divide-gray-100 text-gray-800">
-              {filteredOrders.length > 0 ? (
+            <tbody className="divide-y divide-stone-100 text-stone-800">
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-stone-400 text-sm">
+                    কোনো অর্ডার খুঁজে পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
                 filteredOrders.map((order) => {
-                  const badge = STATUS_BADGES[order.status];
+                  const statusInfo = STATUS_META[order.status] || STATUS_META.Pending;
+                  const firstItem = order.items[0];
+
                   return (
                     <tr
                       key={order.id}
-                      className="hover:bg-stone-50/70 transition-colors group"
+                      className="hover:bg-amber-50/20 transition-colors group"
                     >
-                      <td className="py-4 px-6 font-bold font-sans text-doibrand-dark">
-                        {order.id}
-                      </td>
-                      <td className="py-4 px-6 text-gray-500 text-xs">
-                        {order.date}
-                      </td>
+                      {/* Order ID & Date */}
                       <td className="py-4 px-6">
-                        <div className="font-semibold text-gray-900">
-                          {order.customer}
-                        </div>
-                        <div className="text-[11px] text-gray-400 truncate max-w-[200px]">
-                          {order.items}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 font-bold font-sans text-doibrand-accent">
-                        {order.amount}
-                      </td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${badge.classes}`}
+                        <Link
+                          href={`/admin/orders/${order.id}`}
+                          className="font-bold text-doibrand-accent hover:underline font-sans text-sm flex items-center gap-1"
                         >
-                          {badge.labelBn}
+                          <span>#{order.id}</span>
+                        </Link>
+                        <p className="text-[11px] text-stone-400 font-sans mt-0.5">
+                          {order.createdAt}
+                        </p>
+                      </td>
+
+                      {/* Customer Info */}
+                      <td className="py-4 px-6">
+                        <p className="font-bold text-doibrand-dark text-sm">{order.customerName}</p>
+                        <a
+                          href={`tel:${order.customerPhone}`}
+                          className="text-xs text-stone-500 hover:text-doibrand-accent font-sans mt-0.5 block"
+                        >
+                          {order.customerPhone}
+                        </a>
+                      </td>
+
+                      {/* Items Summary with thumbnails */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          {firstItem && (
+                            <div className="w-10 h-10 rounded-xl overflow-hidden relative bg-stone-100 border border-stone-200 shrink-0">
+                              <Image
+                                src={firstItem.image || "/Product/doi.jpg"}
+                                alt={firstItem.title}
+                                fill
+                                className="object-cover"
+                              />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-stone-800 truncate max-w-44">
+                              {firstItem?.title || "পণ্য"}
+                            </p>
+                            <p className="text-[11px] text-stone-500 font-sans">
+                              {order.items.length > 1
+                                ? `+ আরো ${order.items.length - 1}টি আইটেম`
+                                : `${firstItem?.quantity} টি`}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Total Amount */}
+                      <td className="py-4 px-6">
+                        <span className="font-bold font-sans text-doibrand-accent text-base">
+                          ৳{order.totalAmount.toLocaleString("en-US")}
+                        </span>
+                        <span className="block text-[10px] text-stone-400">
+                          {order.deliveryArea}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedOrder(order)}
-                          title="অর্ডার বিস্তারিত দেখুন"
-                          className="hover:bg-gray-100 text-gray-500 hover:text-doibrand-gold transition-colors p-2 rounded-full cursor-pointer inline-flex items-center justify-center"
+
+                      {/* Payment */}
+                      <td className="py-4 px-6">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                            order.paymentStatus === "Paid"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
                         >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                          {order.paymentStatus === "Paid" ? "পরিশোধিত" : "ক্যাশ অন ডেলিভারি"}
+                        </span>
+                        <span className="block text-[10px] text-stone-400 font-sans mt-0.5">
+                          {order.paymentMethod}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-6">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusInfo.bg} ${statusInfo.color} ${statusInfo.border}`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                          {statusInfo.labelBn}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* View Detail Page */}
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            title="বিস্তারিত দেখুন"
+                            className="p-2 rounded-xl text-stone-500 hover:text-doibrand-dark hover:bg-stone-100 transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Link>
+
+                          {/* Print Invoice */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoiceOrder(order)}
+                            title="ইনভয়েস প্রিন্ট করুন"
+                            className="p-2 rounded-xl text-amber-600 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+
+                          {/* Edit Order */}
+                          <Link
+                            href={`/admin/orders/${order.id}/edit`}
+                            title="সম্পাদনা করুন"
+                            className="p-2 rounded-xl text-stone-500 hover:text-doibrand-gold hover:bg-amber-50 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Link>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(order.id)}
+                            title="মুছে ফেলুন"
+                            className="p-2 rounded-xl text-stone-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
-                    <ShoppingBag className="w-10 h-10 mx-auto text-gray-300 mb-2" />
-                    <span>কোনো অর্ডার পাওয়া যায়নি</span>
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ── 4. Mobile Responsiveness: Stacked Cards (block md:hidden) ─── */}
-      <div className="block md:hidden space-y-4 mt-4">
-        {filteredOrders.length > 0 ? (
-          filteredOrders.map((order) => {
-            const badge = STATUS_BADGES[order.status];
-            return (
-              <div
-                key={order.id}
-                className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-3"
-              >
-                {/* Top Row: Order ID & Status Badge */}
-                <div className="flex items-center justify-between">
-                  <span className="font-bold font-sans text-base text-doibrand-dark">
-                    {order.id}
-                  </span>
-                  <span
-                    className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold ${badge.classes}`}
-                  >
-                    {badge.labelBn}
-                  </span>
-                </div>
-
-                {/* Middle Row: Customer Name & Items */}
+      {/* ── 5. Mobile Orders View Cards ─────────────────────────────────── */}
+      <div className="block md:hidden grid grid-cols-1 gap-4">
+        {filteredOrders.map((order) => {
+          const statusInfo = STATUS_META[order.status] || STATUS_META.Pending;
+          return (
+            <div
+              key={order.id}
+              className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-3.5"
+            >
+              <div className="flex items-center justify-between pb-2 border-b border-stone-100">
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm">
-                    {order.customer}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{order.items}</p>
-                </div>
-
-                {/* Bottom Row: Date, Amount & View Button */}
-                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-                  <div>
-                    <span className="text-gray-400 block">{order.date}</span>
-                    <span className="font-bold font-sans text-base text-doibrand-accent">
-                      {order.amount}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setSelectedOrder(order)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-doibrand-gold text-doibrand-gold text-xs font-semibold transition-colors"
+                  <Link
+                    href={`/admin/orders/${order.id}`}
+                    className="font-bold text-doibrand-accent text-sm font-sans hover:underline"
                   >
-                    <Eye className="w-3.5 h-3.5" />
-                    <span>বিস্তারিত</span>
-                  </button>
+                    #{order.id}
+                  </Link>
+                  <p className="text-[11px] text-stone-400 font-sans">{order.createdAt}</p>
                 </div>
+
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusInfo.bg} ${statusInfo.color} ${statusInfo.border}`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                  {statusInfo.labelBn}
+                </span>
               </div>
-            );
-          })
-        ) : (
-          <div className="bg-white p-8 rounded-xl border border-gray-200 text-center text-gray-400">
-            <ShoppingBag className="w-8 h-8 mx-auto text-gray-300 mb-2" />
-            <span>কোনো অর্ডার নেই</span>
-          </div>
-        )}
+
+              {/* Customer */}
+              <div className="text-xs space-y-0.5">
+                <p className="font-bold text-stone-800">{order.customerName}</p>
+                <p className="text-stone-500 font-sans">{order.customerPhone}</p>
+                <p className="text-[11px] text-stone-400 line-clamp-1">{order.shippingAddress}</p>
+              </div>
+
+              {/* Items & Amount */}
+              <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+                <div>
+                  <span className="text-[11px] text-stone-500 block">
+                    মোট {order.items.length} টি পণ্য
+                  </span>
+                  <span className="text-base font-bold text-doibrand-accent font-sans">
+                    ৳{order.totalAmount}
+                  </span>
+                </div>
+
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    order.paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {order.paymentStatus === "Paid" ? "পরিশোধিত" : "ক্যাশ অন ডেলিভারি"}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedInvoiceOrder(order)}
+                  className="px-3 py-1.5 rounded-xl border border-amber-200 text-amber-700 bg-amber-50 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>ইনভয়েস</span>
+                </button>
+
+                <Link
+                  href={`/admin/orders/${order.id}`}
+                  className="px-3 py-1.5 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 flex items-center gap-1"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>বিস্তারিত</span>
+                </Link>
+
+                <Link
+                  href={`/admin/orders/${order.id}/edit`}
+                  className="px-3 py-1.5 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 flex items-center gap-1"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>এডিট</span>
+                </Link>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* ── 3. Pagination ──────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-gray-100">
-        <p className="text-xs text-gray-500">
-          সর্বমোট <strong className="font-bold text-gray-800">{filteredOrders.length}</strong> টি অর্ডারের মধ্যে{" "}
-          <strong className="font-bold text-gray-800">১-৬</strong> দেখানো হচ্ছে
-        </p>
-
-        <div className="flex items-center gap-1.5">
-          {/* Previous Button */}
-          <button
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-            <span>Previous</span>
-          </button>
-
-          {/* Page Numbers */}
-          <button
-            type="button"
-            onClick={() => setCurrentPage(1)}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              currentPage === 1
-                ? "bg-doibrand-dark text-white rounded-md"
-                : "text-gray-600 hover:bg-gray-100 rounded-md"
-            }`}
-          >
-            1
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage(2)}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              currentPage === 2
-                ? "bg-doibrand-dark text-white rounded-md"
-                : "text-gray-600 hover:bg-gray-100 rounded-md"
-            }`}
-          >
-            2
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentPage(3)}
-            className={`px-3 py-1.5 text-xs font-semibold ${
-              currentPage === 3
-                ? "bg-doibrand-dark text-white rounded-md"
-                : "text-gray-600 hover:bg-gray-100 rounded-md"
-            }`}
-          >
-            3
-          </button>
-
-          {/* Next Button */}
-          <button
-            type="button"
-            disabled={currentPage === 3}
-            onClick={() => setCurrentPage((p) => Math.min(3, p + 1))}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Order Details Modal ────────────────────────────────────────── */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <div>
-                <h3 className="font-bold text-lg text-doibrand-dark">
-                  অর্ডার বিস্তারিত: {selectedOrder.id}
-                </h3>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                  {selectedOrder.date}
-                </p>
-              </div>
+      {/* ── Modal: Quick Printable Invoice View ───────────────────────── */}
+      {selectedInvoiceOrder && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-header-fade-up overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 shadow-2xl border border-stone-200 my-8">
+            <div className="flex justify-between items-center pb-4 border-b border-stone-200 mb-4 print:hidden">
+              <h3 className="font-bold text-base text-doibrand-dark">
+                অর্ডার #{selectedInvoiceOrder.id} ইনভয়েস প্রিভিউ
+              </h3>
               <button
                 type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
+                onClick={() => setSelectedInvoiceOrder(null)}
+                className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="py-4 space-y-4 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-xl bg-stone-50">
-                <span className="text-gray-600 font-medium">অর্ডার স্ট্যাটাস:</span>
-                <span
-                  className={`px-3 py-1 rounded-full font-semibold ${
-                    STATUS_BADGES[selectedOrder.status].classes
-                  }`}
-                >
-                  {STATUS_BADGES[selectedOrder.status].labelBn}
-                </span>
-              </div>
-
-              <div className="p-3 rounded-xl border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between font-medium">
-                  <span className="text-gray-500">গ্রাহকের নাম:</span>
-                  <span className="text-gray-900 font-bold">{selectedOrder.customer}</span>
-                </div>
-                <div className="flex items-center justify-between font-medium">
-                  <span className="text-gray-500">মোবাইল নম্বর:</span>
-                  <span className="text-gray-900 font-sans">{selectedOrder.phone}</span>
-                </div>
-                <div className="flex items-start justify-between font-medium">
-                  <span className="text-gray-500">ঠিকানা:</span>
-                  <span className="text-gray-900 text-right">{selectedOrder.address}</span>
-                </div>
-              </div>
-
-              <div className="p-3 rounded-xl border border-gray-100 space-y-2">
-                <div className="flex items-center justify-between font-medium">
-                  <span className="text-gray-500">অর্ডারকৃত পণ্য:</span>
-                  <span className="text-gray-900 font-semibold">{selectedOrder.items}</span>
-                </div>
-                <div className="flex items-center justify-between font-medium pt-2 border-t border-gray-100">
-                  <span className="text-sm font-bold text-gray-900">মোট মূল্য:</span>
-                  <span className="text-base font-bold text-doibrand-accent font-sans">
-                    {selectedOrder.amount}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-100 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedOrder(null)}
-                className="px-5 py-2.5 bg-doibrand-dark text-white rounded-xl text-xs font-semibold hover:bg-stone-900 transition-colors cursor-pointer"
-              >
-                বন্ধ করুন
-              </button>
-            </div>
+            <OrderInvoice
+              order={selectedInvoiceOrder}
+              onClose={() => setSelectedInvoiceOrder(null)}
+            />
           </div>
         </div>
       )}

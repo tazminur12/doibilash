@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { PROMO_CODES, evaluatePromo, isPromoExpired, type PromoCodeItem } from "@/data/promos";
+import { getStoredPromos } from "@/lib/offerStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const DELIVERY_OPTIONS = {
@@ -169,7 +170,13 @@ export default function CheckoutPage() {
   const totalSavings = couponDiscount + (isDeliveryFree ? baseDeliveryFee : 0);
   const amountToFreeDelivery = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
 
-  const suggestedPromos = now === null ? [] : PROMO_CODES.filter((p) => !isPromoExpired(p, now)).slice(0, 4);
+  const allPromos = typeof window !== "undefined" ? getStoredPromos() : PROMO_CODES;
+  const suggestedPromos =
+    now === null
+      ? []
+      : allPromos
+          .filter((p) => p.isActive !== false && !isPromoExpired(p, now))
+          .slice(0, 4);
 
   const applyCoupon = (code: string) => {
     const result = evaluatePromo(code, promoCtx);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -19,79 +19,18 @@ import {
 } from "lucide-react";
 import ProductCard, { ProductItem } from "@/components/ui/ProductCard";
 import { toBnDigits } from "@/lib/bangla";
-import { PROMO_CODES, type PromoCodeItem } from "@/data/promos";
-
-
-interface FlashSaleProduct extends ProductItem {
-  soldCount: number;
-  totalStock: number;
-}
-
-const FLASH_SALE_PRODUCTS: FlashSaleProduct[] = [
-  {
-    id: "flash-1",
-    slug: "bogra-special-doi",
-    title: "বগুড়ার স্পেশাল সরার মিষ্টি দই",
-    price: "৳ 400",
-    originalPrice: "৳ 500",
-    unit: "১ কেজি মাটির সরা",
-    badge: "ফ্ল্যাশ সেল",
-    image: "/Product/doi.jpg",
-    soldCount: 42,
-    totalStock: 50,
-  },
-  {
-    id: "flash-2",
-    slug: "shahi-ghee-motichoor-laddu",
-    title: "শাহী গাওয়া ঘি মতিচুর লাড্ডু",
-    price: "৳ 510",
-    originalPrice: "৳ 680",
-    unit: "১ কেজি প্রিমিয়াম বক্স",
-    badge: "ফ্ল্যাশ সেল",
-    image:
-      "/Product/placeholder.svg",
-    soldCount: 35,
-    totalStock: 40,
-  },
-  {
-    id: "flash-3",
-    slug: "special-ghee-roasted-laccha-semai",
-    title: "গাওয়া ঘিয়ে ভাজা স্পেশাল লাচ্ছা সেমাই",
-    price: "৳ 360",
-    originalPrice: "৳ 480",
-    unit: "৫০০ গ্রাম বক্স",
-    badge: "ফ্ল্যাশ সেল",
-    image: "/Product/laccha_semai.jpg",
-    soldCount: 28,
-    totalStock: 30,
-  },
-  {
-    id: "flash-4",
-    slug: "sundarban-honey",
-    title: "সুন্দরবনের প্রাকৃতিক খাঁটি মধু",
-    price: "৳ 680",
-    originalPrice: "৳ 850",
-    unit: "৫০০ গ্রাম কাঁচের জার",
-    badge: "ফ্ল্যাশ সেল",
-    image:
-      "/Product/placeholder.svg",
-    soldCount: 19,
-    totalStock: 25,
-  },
-  {
-    id: "flash-5",
-    slug: "pure-ghee",
-    title: "খাঁটি দানাদার গাওয়া ঘি",
-    price: "৳ 1,085",
-    originalPrice: "৳ 1,450",
-    unit: "৯০০ গ্রাম জার",
-    badge: "ফ্ল্যাশ সেল",
-    image:
-      "/Product/placeholder.svg",
-    soldCount: 15,
-    totalStock: 20,
-  },
-];
+import {
+  StoredPromoCode,
+  StoredFlashDeal,
+  CampaignSettings,
+  getStoredPromos,
+  getStoredFlashDeals,
+  getStoredCampaignSettings,
+  DEFAULT_PROMOS,
+  DEFAULT_FLASH_DEALS,
+  DEFAULT_CAMPAIGN_SETTINGS,
+  OFFERS_UPDATED_EVENT,
+} from "@/lib/offerStorage";
 
 const HOW_TO_STEPS = [
   { icon: Copy, title: "কোড কপি করুন", text: "পছন্দের প্রোমো কোডের পাশে কপি বাটনে চাপুন" },
@@ -99,7 +38,7 @@ const HOW_TO_STEPS = [
   { icon: TicketPercent, title: "চেকআউটে কোড বসান", text: "পেমেন্টের আগে কোডটি বসিয়ে ছাড় নিন" },
 ];
 
-const expiryTime = (promo: PromoCodeItem) => (promo.expiresAt ? new Date(promo.expiresAt).getTime() : null);
+const expiryTime = (promo: StoredPromoCode) => (promo.expiresAt ? new Date(promo.expiresAt).getTime() : null);
 
 const subscribeToClock = (callback: () => void) => {
   const id = setInterval(callback, 1000);
@@ -122,16 +61,36 @@ export default function SpecialOffersPage() {
   const nowSeconds = useNowSeconds();
   const now = nowSeconds === null ? null : nowSeconds * 1000;
 
-  const isExpired = (promo: PromoCodeItem) => {
+  const [promos, setPromos] = useState<StoredPromoCode[]>(DEFAULT_PROMOS);
+  const [flashDeals, setFlashDeals] = useState<StoredFlashDeal[]>(DEFAULT_FLASH_DEALS);
+  const [campaign, setCampaign] = useState<CampaignSettings>(DEFAULT_CAMPAIGN_SETTINGS);
+
+  useEffect(() => {
+    const refresh = () => {
+      setPromos(getStoredPromos());
+      setFlashDeals(getStoredFlashDeals());
+      setCampaign(getStoredCampaignSettings());
+    };
+    refresh();
+    window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const isExpired = (promo: StoredPromoCode) => {
     const t = expiryTime(promo);
     return now !== null && t !== null && t < now;
   };
 
-  const activePromos = PROMO_CODES.filter((p) => !isExpired(p));
-  const campaignEnd = Math.max(
-    ...activePromos.map((p) => expiryTime(p) ?? 0),
-    0
-  );
+  const activePromos = promos.filter((p) => p.isActive !== false && !isExpired(p));
+
+  const campaignEnd = campaign.campaignEnd
+    ? new Date(campaign.campaignEnd).getTime()
+    : Math.max(...activePromos.map((p) => expiryTime(p) ?? 0), 0);
+
   const remainingMs = now === null || campaignEnd === 0 ? null : Math.max(0, campaignEnd - now);
 
   const countdown =
@@ -144,7 +103,15 @@ export default function SpecialOffersPage() {
           seconds: Math.floor((remainingMs / 1000) % 60),
         };
 
-  const campaignEndLabel = activePromos.find((p) => expiryTime(p) === campaignEnd)?.expiry;
+  const campaignEndLabel =
+    activePromos.find((p) => expiryTime(p) === campaignEnd)?.expiry ||
+    (campaign.campaignEnd
+      ? new Date(campaign.campaignEnd).toLocaleDateString("bn-BD", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })
+      : null);
 
   const handleCopy = async (code: string) => {
     try {
@@ -168,6 +135,8 @@ export default function SpecialOffersPage() {
     { label: "সেকেন্ড", value: countdown?.seconds },
   ];
 
+  const activeFlashDeals = flashDeals.filter((d) => d.isActive !== false);
+
   return (
     <main className="min-h-screen bg-doibrand-light text-doibrand-dark font-bengali">
       {/* Hero */}
@@ -190,17 +159,25 @@ export default function SpecialOffersPage() {
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-full bg-linear-to-r from-doibrand-accent to-doibrand-gold px-3 py-1 text-[11px] font-bold text-white shadow-[0_6px_16px_-8px_rgba(169,94,53,0.8)]">
                 <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-                মেগা ডিসকাউন্ট উৎসব
+                {campaign.badge || "মেগা ডিসকাউন্ট উৎসব"}
               </span>
               <h1 className="mt-4 text-4xl sm:text-[52px] font-extrabold leading-[1.1] tracking-tight">
-                স্পেশাল{" "}
+                {campaign.title || "স্পেশাল"}{" "}
                 <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
-                  ধামাকা অফার
+                  {campaign.highlightText || "ধামাকা অফার"}
                 </span>
               </h1>
               <p className="mt-4 max-w-xl text-sm sm:text-base leading-relaxed text-stone-600">
-                সীমিত সময়ের জন্য সেরা দামে খাঁটি পণ্য। সর্বোচ্চ ছাড় ও আকর্ষণীয় ভাউচার কোড উপভোগ করুন।
+                {campaign.description || "সীমিত সময়ের জন্য সেরা দামে খাঁটি পণ্য। সর্বোচ্চ ছাড় ও আকর্ষণীয় ভাউচার কোড উপভোগ করুন।"}
               </p>
+
+              {campaign.announcementText && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white/70 border border-doibrand-gold/40 px-3.5 py-1.5 text-xs font-semibold text-doibrand-dark">
+                  <Sparkles className="w-3.5 h-3.5 text-doibrand-accent shrink-0" />
+                  <span>{campaign.announcementText}</span>
+                </div>
+              )}
+
               <div className="mt-7 flex flex-wrap gap-3">
                 <a
                   href="#promo-codes"
@@ -283,72 +260,74 @@ export default function SpecialOffersPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {PROMO_CODES.map((promo) => {
-              const isCopied = copiedCode === promo.code;
-              const expired = isExpired(promo);
-              return (
-                <div
-                  key={promo.id}
-                  className={`group relative flex overflow-hidden rounded-2xl bg-white ring-1 transition-all duration-300 ${
-                    expired
-                      ? "ring-stone-200 opacity-60 grayscale"
-                      : "ring-doibrand-gold/25 shadow-[0_12px_30px_-22px_rgba(169,94,53,0.6)] hover:-translate-y-1 hover:ring-doibrand-gold/50 hover:shadow-[0_22px_40px_-24px_rgba(169,94,53,0.65)]"
-                  }`}
-                >
-                  {/* Ticket Stub */}
-                  <div className="relative w-28 sm:w-32 shrink-0 flex flex-col items-center justify-center gap-1 bg-linear-to-br from-doibrand-accent via-[#B9733F] to-doibrand-gold px-3 py-5 text-center text-white">
-                    <Percent className="absolute top-2 left-2 w-10 h-10 text-white/10" />
-                    <span className="text-[10px] font-semibold uppercase tracking-widest text-white/75">অফার</span>
-                    <span className="text-xl font-extrabold leading-tight">{promo.discount}</span>
-                  </div>
+            {promos
+              .filter((p) => p.isActive !== false)
+              .map((promo) => {
+                const isCopied = copiedCode === promo.code;
+                const expired = isExpired(promo);
+                return (
+                  <div
+                    key={promo.id}
+                    className={`group relative flex overflow-hidden rounded-2xl bg-white ring-1 transition-all duration-300 ${
+                      expired
+                        ? "ring-stone-200 opacity-60 grayscale"
+                        : "ring-doibrand-gold/25 shadow-[0_12px_30px_-22px_rgba(169,94,53,0.6)] hover:-translate-y-1 hover:ring-doibrand-gold/50 hover:shadow-[0_22px_40px_-24px_rgba(169,94,53,0.65)]"
+                    }`}
+                  >
+                    {/* Ticket Stub */}
+                    <div className="relative w-28 sm:w-32 shrink-0 flex flex-col items-center justify-center gap-1 bg-linear-to-br from-doibrand-accent via-[#B9733F] to-doibrand-gold px-3 py-5 text-center text-white">
+                      <Percent className="absolute top-2 left-2 w-10 h-10 text-white/10" />
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-white/75">অফার</span>
+                      <span className="text-xl font-extrabold leading-tight">{promo.discount}</span>
+                    </div>
 
-                  {/* Perforation */}
-                  <div className="relative w-0 border-l-2 border-dashed border-doibrand-gold/30">
-                    <span className="absolute -top-2.5 -left-2.5 w-5 h-5 rounded-full bg-doibrand-light" />
-                    <span className="absolute -bottom-2.5 -left-2.5 w-5 h-5 rounded-full bg-doibrand-light" />
-                  </div>
+                    {/* Perforation */}
+                    <div className="relative w-0 border-l-2 border-dashed border-doibrand-gold/30">
+                      <span className="absolute -top-2.5 -left-2.5 w-5 h-5 rounded-full bg-doibrand-light" />
+                      <span className="absolute -bottom-2.5 -left-2.5 w-5 h-5 rounded-full bg-doibrand-light" />
+                    </div>
 
-                  {/* Details */}
-                  <div className="flex-1 min-w-0 p-4 flex flex-col">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="rounded-full bg-[#FBF1E4] px-2.5 py-0.5 text-[10px] font-bold text-doibrand-accent ring-1 ring-doibrand-gold/20">
-                        {promo.tag}
-                      </span>
-                      {expired ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600">
-                          <CalendarX2 className="w-3 h-3" />
-                          মেয়াদ শেষ
+                    {/* Details */}
+                    <div className="flex-1 min-w-0 p-4 flex flex-col">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="rounded-full bg-[#FBF1E4] px-2.5 py-0.5 text-[10px] font-bold text-doibrand-accent ring-1 ring-doibrand-gold/20">
+                          {promo.tag}
                         </span>
-                      ) : (
-                        <span className="text-[10px] text-stone-400 truncate">{promo.expiry}</span>
-                      )}
-                    </div>
-                    <p className="mt-2.5 text-sm font-bold text-doibrand-dark leading-snug">{promo.description}</p>
-                    <p className="mt-0.5 text-[11px] text-stone-500">{promo.condition}</p>
+                        {expired ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-600">
+                            <CalendarX2 className="w-3 h-3" />
+                            মেয়াদ শেষ
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-400 truncate">{promo.expiry}</span>
+                        )}
+                      </div>
+                      <p className="mt-2.5 text-sm font-bold text-doibrand-dark leading-snug">{promo.description}</p>
+                      <p className="mt-0.5 text-[11px] text-stone-500">{promo.condition}</p>
 
-                    <div className="mt-auto pt-4 flex items-center gap-2">
-                      <span className="flex-1 min-w-0 truncate rounded-lg border border-dashed border-doibrand-gold/50 bg-[#FFF9F1] px-3 py-2 text-center font-mono text-sm font-bold tracking-wider text-doibrand-accent select-all">
-                        {promo.code}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(promo.code)}
-                        disabled={expired}
-                        aria-label={`Copy code ${promo.code}`}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer disabled:cursor-not-allowed ${
-                          isCopied
-                            ? "bg-emerald-600 text-white"
-                            : "bg-doibrand-dark text-doibrand-light hover:bg-doibrand-accent disabled:bg-stone-300"
-                        }`}
-                      >
-                        {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        {isCopied ? "কপি হয়েছে" : "কপি"}
-                      </button>
+                      <div className="mt-auto pt-4 flex items-center gap-2">
+                        <span className="flex-1 min-w-0 truncate rounded-lg border border-dashed border-doibrand-gold/50 bg-[#FFF9F1] px-3 py-2 text-center font-mono text-sm font-bold tracking-wider text-doibrand-accent select-all">
+                          {promo.code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(promo.code)}
+                          disabled={expired}
+                          aria-label={`Copy code ${promo.code}`}
+                          className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition cursor-pointer disabled:cursor-not-allowed ${
+                            isCopied
+                              ? "bg-emerald-600 text-white"
+                              : "bg-doibrand-dark text-doibrand-light hover:bg-doibrand-accent disabled:bg-stone-300"
+                          }`}
+                        >
+                          {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                          {isCopied ? "কপি হয়েছে" : "কপি"}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
 
           {/* How To Use */}
@@ -381,7 +360,7 @@ export default function SpecialOffersPage() {
               <h2 className="mt-3 text-2xl sm:text-[32px] font-extrabold tracking-tight leading-tight">
                 ফ্ল্যাশ{" "}
                 <span className="bg-linear-to-r from-doibrand-accent via-doibrand-gold to-doibrand-accent bg-clip-text text-transparent">
-                  সেল
+                  সেল ও বিশেষ রেট
                 </span>
               </h2>
               <p className="mt-1.5 text-xs sm:text-sm text-stone-500">
@@ -398,12 +377,23 @@ export default function SpecialOffersPage() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
-            {FLASH_SALE_PRODUCTS.map((product) => {
+            {activeFlashDeals.map((product) => {
               const soldPercentage = Math.round((product.soldCount / product.totalStock) * 100);
-              const left = product.totalStock - product.soldCount;
+              const left = Math.max(0, product.totalStock - product.soldCount);
+              const cardProduct: ProductItem = {
+                id: product.id,
+                slug: product.slug,
+                title: product.title,
+                price: `৳ ${product.price}`,
+                originalPrice: `৳ ${product.originalPrice}`,
+                unit: product.unit,
+                badge: product.badge,
+                image: product.image,
+              };
+
               return (
                 <div key={product.id} className="flex flex-col gap-2">
-                  <ProductCard product={product} />
+                  <ProductCard product={cardProduct} />
                   <div className="rounded-xl bg-white/80 px-3 py-2.5 ring-1 ring-stone-200/70">
                     <div className="mb-1.5 flex items-center justify-between text-[10px]">
                       <span className="text-stone-500">
@@ -417,7 +407,7 @@ export default function SpecialOffersPage() {
                     <div className="relative h-1.5 overflow-hidden rounded-full bg-[#F5E6D3]">
                       <div
                         className="relative h-full overflow-hidden rounded-full bg-linear-to-r from-doibrand-gold to-doibrand-accent"
-                        style={{ width: `${soldPercentage}%` }}
+                        style={{ width: `${Math.min(100, soldPercentage)}%` }}
                       >
                         <span className="absolute inset-y-0 -left-1/2 w-1/2 bg-linear-to-r from-transparent via-white/60 to-transparent animate-header-shine" />
                       </div>

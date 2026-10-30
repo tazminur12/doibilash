@@ -53,7 +53,25 @@ export default function Header() {
   const { openCart, totalCount } = useCart();
 
   useEffect(() => {
-    const onScroll = () => setIsScrolled(window.scrollY > 24);
+    let ticking = false;
+    const SCROLL_DOWN_THRESHOLD = 70; // Only collapse after user scrolls down 70px
+    const SCROLL_UP_THRESHOLD = 15;   // Only expand when user scrolls back near top (< 15px)
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const current = window.scrollY;
+          setIsScrolled((prev) => {
+            if (!prev && current > SCROLL_DOWN_THRESHOLD) return true;
+            if (prev && current < SCROLL_UP_THRESHOLD) return false;
+            return prev;
+          });
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -116,11 +134,11 @@ export default function Header() {
       <header className="sticky top-0 z-50 w-full">
         {/* Tier 1: Announcement Bar */}
         <div
-          className={`grid bg-doibrand-dark text-doibrand-light transition-[grid-template-rows] duration-500 ease-out ${
-            isScrolled ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+          className={`grid bg-doibrand-dark text-doibrand-light transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+            isScrolled ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
           }`}
         >
-          <div className="overflow-hidden">
+          <div className="overflow-hidden min-h-0">
             <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-center lg:justify-between text-[12px]">
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(196,138,78,0.18),transparent_70%)]" />
 
@@ -295,11 +313,11 @@ export default function Header() {
 
           {/* Mobile Search */}
           <div
-            className={`md:hidden grid transition-[grid-template-rows] duration-300 ${
-              isScrolled ? "grid-rows-[0fr]" : "grid-rows-[1fr]"
+            className={`md:hidden grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
+              isScrolled ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
             }`}
           >
-            <div className="overflow-hidden">
+            <div className="overflow-hidden min-h-0">
               <form onSubmit={handleSearchSubmit} className="px-4 pb-3" role="search">
                 <div className="relative flex items-center rounded-full bg-white border border-doibrand-dark/10 focus-within:border-doibrand-gold/60 focus-within:shadow-[0_0_0_3px_rgba(196,138,78,0.12)] transition">
                   <Search className="absolute left-3.5 w-4 h-4 text-stone-400 pointer-events-none" />

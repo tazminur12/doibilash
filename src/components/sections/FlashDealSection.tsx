@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag, CheckCircle2, Flame, ArrowRight, Zap } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { getStoredFlashDeals, OFFERS_UPDATED_EVENT } from "@/lib/offerStorage";
 
 interface FlashProduct {
   id: string | number;
@@ -61,6 +62,39 @@ const FLASH_PRODUCTS: FlashProduct[] = [
 export default function FlashDealSection() {
   const { addItem, openCart } = useCart();
   const [addedId, setAddedId] = useState<string | number | null>(null);
+  const [deals, setDeals] = useState<FlashProduct[]>(FLASH_PRODUCTS);
+
+  useEffect(() => {
+    const refresh = () => {
+      const stored = getStoredFlashDeals();
+      const active = stored.filter((d) => d.isActive !== false);
+      if (active.length > 0) {
+        const mapped: FlashProduct[] = active.slice(0, 3).map((d) => {
+          const discountPct = Math.round(((d.originalPrice - d.price) / d.originalPrice) * 100);
+          return {
+            id: d.id,
+            slug: d.slug,
+            title: d.title,
+            price: d.price,
+            originalPrice: d.originalPrice,
+            discount: `-${discountPct}%`,
+            image: d.image || "/Product/placeholder.svg",
+            stockLeft: Math.max(0, d.totalStock - d.soldCount),
+            stockTotal: d.totalStock,
+            unit: d.unit,
+          };
+        });
+        setDeals(mapped);
+      }
+    };
+    refresh();
+    window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState({
@@ -172,7 +206,7 @@ export default function FlashDealSection() {
 
         {/* Product Cards: swipe on mobile, grid on desktop */}
         <div className="relative -mx-5 px-5 sm:mx-0 sm:px-0 flex md:grid md:grid-cols-3 gap-4 sm:gap-6 overflow-x-auto md:overflow-visible snap-x snap-mandatory hide-scrollbar pb-2 md:pb-0">
-          {FLASH_PRODUCTS.map((prod) => {
+          {deals.map((prod) => {
             const soldCount = prod.stockTotal - prod.stockLeft;
             const progressPercent = Math.round((soldCount / prod.stockTotal) * 100);
             const savings = prod.originalPrice - prod.price;

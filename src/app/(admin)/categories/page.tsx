@@ -1,90 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import {
   Plus,
   Edit2,
   Trash2,
   Sparkles,
-  Cookie,
-  Flame,
-  Wheat,
-  Cake,
-  FolderTree,
-  X,
-  Check,
   Search,
+  FolderTree,
+  ExternalLink,
+  Package,
+  Layers,
+  CheckCircle2,
+  Star,
+  Eye,
+  ArrowUpRight,
 } from "lucide-react";
-
-interface CategoryItem {
-  id: string;
-  name: string;
-  nameBn: string;
-  slug: string;
-  totalProducts: number;
-  icon: React.ElementType;
-  description: string;
-}
-
-const INITIAL_CATEGORIES: CategoryItem[] = [
-  {
-    id: "cat-1",
-    name: "Premium Doi",
-    nameBn: "প্রিমিয়াম দই",
-    slug: "premium-doi",
-    totalProducts: 12,
-    icon: Sparkles,
-    description: "বগুড়ার ঐতিহ্যবাহী সরা ও মাটির হাঁড়ির মিষ্টি এবং টক দই",
-  },
-  {
-    id: "cat-2",
-    name: "Laddu",
-    nameBn: "ঐতিহ্যবাহী লাড্ডু",
-    slug: "laddu",
-    totalProducts: 8,
-    icon: Cookie,
-    description: "খাঁটি ঘিয়ে ভাজা মতিচুর ও বেসনের স্পেশাল লাড্ডু",
-  },
-  {
-    id: "cat-3",
-    name: "Pure Ghee",
-    nameBn: "খাঁটি গাওয়া ঘি",
-    slug: "pure-ghee",
-    totalProducts: 5,
-    icon: Flame,
-    description: "ঘরোয়া প্রক্রিয়ায় প্রস্তুতকৃত দানাদার সুগন্ধি গাওয়া ঘি",
-  },
-  {
-    id: "cat-4",
-    name: "Laccha Semai",
-    nameBn: "প্রিমিয়াম লাচ্ছা সেমাই",
-    slug: "laccha-semai",
-    totalProducts: 6,
-    icon: Wheat,
-    description: "ঘিয়ে ভাজা মচমচে প্রিমিয়াম কোয়ালিটির লাচ্ছা সেমাই",
-  },
-  {
-    id: "cat-5",
-    name: "Traditional Sweets",
-    nameBn: "ঐতিহ্যবাহী মিষ্টি",
-    slug: "traditional-sweets",
-    totalProducts: 14,
-    icon: Cake,
-    description: "রসগোল্লা, চমচম, কালোজাম এবং ছানার মিষ্টির সম্ভার",
-  },
-];
+import {
+  StoredCategory,
+  getStoredCategories,
+  deleteCategory,
+} from "@/lib/categoryStorage";
+import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminCategoriesPage() {
-  const [categories, setCategories] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
+  const [categories, setCategories] = useState<StoredCategory[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Form state
-  const [formNameBn, setFormNameBn] = useState("");
-  const [formNameEn, setFormNameEn] = useState("");
-  const [formSlug, setFormSlug] = useState("");
-  const [formProducts, setFormProducts] = useState(0);
+  // Load from storage
+  useEffect(() => {
+    setCategories(getStoredCategories());
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    if (confirm(`আপনি কি "${name}" ক্যাটাগরিটি মুছে ফেলতে চান?`)) {
+      const updated = deleteCategory(id);
+      setCategories(updated);
+      showToast(`"${name}" ক্যাটাগরি সফলভাবে মুছে ফেলা হয়েছে`);
+    }
+  };
 
   const filteredCategories = categories.filter(
     (cat) =>
@@ -93,345 +55,341 @@ export default function AdminCategoriesPage() {
       cat.slug.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const openAddModal = () => {
-    setEditingCategory(null);
-    setFormNameBn("");
-    setFormNameEn("");
-    setFormSlug("");
-    setFormProducts(0);
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (cat: CategoryItem) => {
-    setEditingCategory(cat);
-    setFormNameBn(cat.nameBn);
-    setFormNameEn(cat.name);
-    setFormSlug(cat.slug);
-    setFormProducts(cat.totalProducts);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`আপনি কি "${name}" ক্যাটাগরিটি মুছে ফেলতে চান?`)) {
-      setCategories((prev) => prev.filter((item) => item.id !== id));
-    }
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formNameBn.trim() || !formSlug.trim()) return;
-
-    if (editingCategory) {
-      setCategories((prev) =>
-        prev.map((item) =>
-          item.id === editingCategory.id
-            ? {
-                ...item,
-                name: formNameEn || item.name,
-                nameBn: formNameBn,
-                slug: formSlug,
-                totalProducts: formProducts,
-              }
-            : item
-        )
-      );
-    } else {
-      const newCat: CategoryItem = {
-        id: `cat-${Date.now()}`,
-        name: formNameEn || formNameBn,
-        nameBn: formNameBn,
-        slug: formSlug.toLowerCase().replace(/\s+/g, "-"),
-        totalProducts: formProducts || 0,
-        icon: FolderTree,
-        description: "নতুন ক্যাটাগরি বিবরণ",
-      };
-      setCategories((prev) => [...prev, newCat]);
-    }
-
-    setIsModalOpen(false);
-  };
+  const totalProductsCount = categories.reduce((acc, c) => acc + (c.totalProducts || 0), 0);
+  const featuredCount = categories.filter((c) => c.isFeatured).length;
 
   return (
-    <div className="p-6 font-bengali space-y-6">
-      {/* ── 1. Header & Action ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-gray-100">
+    <div className="font-bengali text-doibrand-dark space-y-6 pb-16">
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 animate-header-fade-up bg-stone-900 text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 border border-doibrand-gold/40 text-xs sm:text-sm">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* ── 1. Header & Actions ─────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-200/80">
         <div>
-          <h1 className="font-bengali text-3xl font-bold text-gray-800 tracking-tight">
-            ক্যাটাগরি
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            দই বিলাসের পণ্য ক্যাটাগরি তালিকা, প্রোডাক্ট সংখ্যা ও পরিচালনা
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-doibrand-dark">
+              ক্যাটাগরি ব্যবস্থাপনা
+            </h1>
+            <span className="bg-amber-100 text-doibrand-dark text-xs font-bold px-2.5 py-0.5 rounded-full font-sans">
+              {toBnDigits(categories.length)} টি ক্যাটাগরি
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-stone-500 mt-1">
+            দই বিলাসের পণ্য ক্যাটাগরি তালিকা, প্রোডাক্ট সংখ্যা, ইমেজ ও লাইভ নিয়ন্ত্রণ।
           </p>
         </div>
 
-        {/* Right: + নতুন ক্যাটাগরি Button */}
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="bg-doibrand-dark text-white hover:bg-doibrand-gold px-5 py-2.5 rounded-xl transition-colors font-semibold flex items-center gap-2 shadow-sm cursor-pointer self-start sm:self-auto text-sm"
+        {/* Right: + নতুন ক্যাটাগরি Button (Now navigates to new page!) */}
+        <Link
+          href="/admin/categories/new"
+          className="bg-linear-to-r from-doibrand-dark via-[#432322] to-doibrand-accent hover:from-doibrand-accent hover:to-doibrand-gold text-white px-5 py-2.5 rounded-xl transition-all font-bold flex items-center gap-2 shadow-md hover:shadow-lg cursor-pointer self-start sm:self-auto text-sm"
         >
           <Plus className="w-4 h-4" />
           <span>+ নতুন ক্যাটাগরি</span>
-        </button>
+        </Link>
       </div>
 
-      {/* Search and summary bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        <div className="relative w-full sm:w-72">
+      {/* ── 2. Top Metric Cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">মোট ক্যাটাগরি</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-doibrand-gold flex items-center justify-center">
+              <FolderTree className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-doibrand-dark mt-2 font-sans">
+            {categories.length}
+          </p>
+          <span className="text-[11px] text-emerald-600 font-medium">সকল ক্যাটাগরি সক্রিয়</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">মোট সংযুক্ত পণ্য</span>
+            <div className="w-8 h-8 rounded-xl bg-orange-50 text-doibrand-accent flex items-center justify-center">
+              <Package className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-doibrand-dark mt-2 font-sans">
+            {totalProductsCount}
+          </p>
+          <span className="text-[11px] text-stone-500">বিভিন্ন ক্যাটাগরিতে পণ্য</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">ফিচার্ড ক্যাটাগরি</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-100/60 text-amber-700 flex items-center justify-center">
+              <Star className="w-4 h-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-doibrand-dark mt-2 font-sans">
+            {featuredCount}
+          </p>
+          <span className="text-[11px] text-amber-600 font-medium">হোমপেজে প্রদর্শিত</span>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-stone-500">পাবলিক ভিউ</span>
+            <div className="w-8 h-8 rounded-xl bg-stone-100 text-stone-600 flex items-center justify-center">
+              <Eye className="w-4 h-4" />
+            </div>
+          </div>
+          <Link
+            href="/shop"
+            target="_blank"
+            className="text-xs font-bold text-doibrand-accent hover:underline flex items-center gap-1 mt-3"
+          >
+            <span>ওয়েবসাইট শপ ভিজিট করুন</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+          <span className="text-[10px] text-stone-400">লাইভ গ্রাহক দৃশ্যমানতা</span>
+        </div>
+      </div>
+
+      {/* ── 3. Search & Filter Bar ───────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs">
+        <div className="relative w-full sm:w-80">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="ক্যাটাগরি খুঁজুন..."
-            className="w-full bg-white border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-doibrand-gold shadow-2xs"
+            placeholder="ক্যাটাগরির নাম বা স্লাগ দিয়ে খুঁজুন..."
+            className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-doibrand-gold/40"
           />
-          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
 
-        <span className="text-xs text-gray-500 self-start sm:self-auto">
-          সর্বমোট ক্যাটাগরি: <strong className="text-doibrand-dark">{categories.length}</strong> টি
-        </span>
+        <div className="flex items-center gap-3 text-xs text-stone-500 self-end sm:self-auto">
+          <span>
+            ফিল্টারকৃত: <strong className="text-doibrand-dark font-sans">{filteredCategories.length}</strong> টি
+          </span>
+          <Link
+            href="/admin/categories/new"
+            className="text-xs font-bold text-doibrand-accent hover:underline flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>নতুন ক্যাটাগরি তৈরি করুন</span>
+          </Link>
+        </div>
       </div>
 
-      {/* ── 2. Categories Table for Desktop (Hidden on Mobile) ─────────── */}
-      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+      {/* ── 4. Desktop Categories Table ─────────────────────────────────── */}
+      <div className="hidden md:block bg-white rounded-3xl shadow-sm border border-stone-200/80 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            {/* Table Header */}
-            <thead className="bg-gray-50 text-gray-500 font-medium text-sm py-4 px-6 text-left border-b border-gray-100">
+            <thead className="bg-[#FAF8F5] text-stone-600 font-bold text-xs py-4 px-6 border-b border-stone-200/80">
               <tr>
-                <th className="py-4 px-6 text-left">Icon/Image</th>
-                <th className="py-4 px-6 text-left">Category Name</th>
-                <th className="py-4 px-6 text-left">Slug</th>
-                <th className="py-4 px-6 text-left">Total Products</th>
-                <th className="py-4 px-6 text-right">Actions</th>
+                <th className="py-4 px-6">ছবি / প্রিভিউ</th>
+                <th className="py-4 px-6">ক্যাটাগরি নাম</th>
+                <th className="py-4 px-6">URL Slug</th>
+                <th className="py-4 px-6">মোট পণ্য সংখ্যা</th>
+                <th className="py-4 px-6">স্ট্যাটাস</th>
+                <th className="py-4 px-6 text-right">একশন</th>
               </tr>
             </thead>
 
-            {/* Table Body */}
-            <tbody className="divide-y divide-gray-100 text-gray-800">
-              {filteredCategories.map((cat) => {
-                const IconComponent = cat.icon;
-                return (
+            <tbody className="divide-y divide-stone-100 text-stone-800">
+              {filteredCategories.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-stone-400 text-sm">
+                    কোনো ক্যাটাগরি খুঁজে পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
+                filteredCategories.map((cat) => (
                   <tr
                     key={cat.id}
-                    className="hover:bg-stone-50/70 transition-colors group"
+                    className="hover:bg-amber-50/30 transition-colors group"
                   >
-                    {/* Icon Column */}
+                    {/* Image Column */}
                     <td className="py-4 px-6">
-                      <div className="w-10 h-10 bg-doibrand-light rounded-full flex items-center justify-center text-doibrand-gold shrink-0 border border-amber-100/50 shadow-2xs">
-                        <IconComponent className="w-5 h-5" />
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden relative bg-stone-100 border border-stone-200 shadow-2xs group-hover:scale-105 transition-transform">
+                        <Image
+                          src={cat.image || "/Product/doi.jpg"}
+                          alt={cat.nameBn}
+                          fill
+                          unoptimized={cat.image?.startsWith("data:") || cat.image?.startsWith("blob:")}
+                          className="object-cover"
+                        />
                       </div>
                     </td>
 
                     {/* Category Name Column */}
                     <td className="py-4 px-6">
-                      <div className="font-bold text-doibrand-dark text-base">
-                        {cat.nameBn}
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-doibrand-dark text-base">
+                          {cat.nameBn}
+                        </span>
+                        {cat.isFeatured && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-[10px] font-bold">
+                            <Star className="w-2.5 h-2.5 fill-current" />
+                            ফিচার্ড
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-400 font-sans">
+                      <div className="text-xs text-stone-400 font-sans mt-0.5">
                         {cat.name}
                       </div>
+                      {cat.subtitle && (
+                        <div className="text-[11px] text-stone-500 line-clamp-1 mt-0.5 max-w-xs">
+                          {cat.subtitle}
+                        </div>
+                      )}
                     </td>
 
                     {/* Slug Column */}
                     <td className="py-4 px-6">
-                      <span className="font-mono text-xs text-gray-600 bg-stone-100 px-2.5 py-1 rounded-md border border-stone-200">
-                        /{cat.slug}
-                      </span>
+                      <Link
+                        href={`/category/${cat.slug}`}
+                        target="_blank"
+                        className="inline-flex items-center gap-1 font-mono text-xs text-stone-600 bg-stone-100 hover:bg-amber-100 hover:text-doibrand-accent px-2.5 py-1 rounded-md border border-stone-200 transition-colors"
+                        title="ওয়েবসাইটে ক্যাটাগরি দেখুন"
+                      >
+                        <span>/{cat.slug}</span>
+                        <ExternalLink className="w-3 h-3 text-stone-400" />
+                      </Link>
                     </td>
 
                     {/* Total Products Column */}
                     <td className="py-4 px-6">
-                      <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold font-sans">
-                        {cat.totalProducts} items
+                      <span className="inline-flex items-center gap-1.5 bg-stone-100 text-stone-800 px-3 py-1 rounded-full text-xs font-bold font-sans">
+                        <Package className="w-3.5 h-3.5 text-doibrand-gold" />
+                        {cat.totalProducts || 0} টি পণ্য
                       </span>
+                    </td>
+
+                    {/* Status Column */}
+                    <td className="py-4 px-6">
+                      {cat.status === "draft" ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          খসড়া
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          সক্রিয়
+                        </span>
+                      )}
                     </td>
 
                     {/* Actions Column */}
                     <td className="py-4 px-6 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {/* Edit Button */}
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(cat)}
+                        {/* Edit Button -> Navigates to the full new/edit page! */}
+                        <Link
+                          href={`/admin/categories/new?id=${cat.id}`}
                           title="সম্পাদনা করুন"
-                          className="p-2 rounded-lg text-gray-500 hover:text-doibrand-gold hover:bg-amber-50 transition-colors cursor-pointer"
+                          className="p-2 rounded-xl text-stone-500 hover:text-doibrand-gold hover:bg-amber-50 transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
-                        </button>
+                        </Link>
 
                         {/* Delete Button */}
                         <button
                           type="button"
                           onClick={() => handleDelete(cat.id, cat.nameBn)}
                           title="মুছে ফেলুন"
-                          className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                          className="p-2 rounded-xl text-stone-500 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ── 3. Mobile View: CSS Grid of Cards (block md:hidden) ────────── */}
-      <div className="block md:hidden grid grid-cols-1 gap-4 mt-6">
-        {filteredCategories.map((cat) => {
-          const IconComponent = cat.icon;
-          return (
-            <div
-              key={cat.id}
-              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3.5"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-doibrand-light rounded-full flex items-center justify-center text-doibrand-gold shrink-0 border border-amber-100/50">
-                    <IconComponent className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base text-doibrand-dark">
-                      {cat.nameBn}
-                    </h3>
-                    <p className="text-xs text-gray-400 font-sans">{cat.name}</p>
-                  </div>
+      {/* ── 5. Mobile View: Responsive Category Cards ──────────────────── */}
+      <div className="block md:hidden grid grid-cols-1 gap-4">
+        {filteredCategories.map((cat) => (
+          <div
+            key={cat.id}
+            className="bg-white rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-3.5"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden relative bg-stone-100 border border-stone-200 shrink-0">
+                <Image
+                  src={cat.image || "/Product/doi.jpg"}
+                  alt={cat.nameBn}
+                  fill
+                  unoptimized={cat.image?.startsWith("data:") || cat.image?.startsWith("blob:")}
+                  className="object-cover"
+                />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="font-bold text-base text-doibrand-dark truncate">
+                    {cat.nameBn}
+                  </h3>
+                  {cat.isFeatured && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                      ফিচার্ড
+                    </span>
+                  )}
                 </div>
-
-                {/* Total Products Number Badge */}
-                <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold font-sans">
-                  {cat.totalProducts} items
-                </span>
+                <p className="text-xs text-stone-400 font-sans">{cat.name}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="bg-stone-100 text-stone-700 px-2 py-0.5 rounded-full text-[11px] font-bold font-sans">
+                    {cat.totalProducts || 0} টি পণ্য
+                  </span>
+                  <span className="text-[11px] font-mono text-stone-500">
+                    /{cat.slug}
+                  </span>
+                </div>
               </div>
+            </div>
 
-              {/* Slug */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-50 text-xs">
-                <span className="text-gray-400">URL Slug:</span>
-                <span className="font-mono text-gray-600 bg-stone-100 px-2 py-0.5 rounded border border-stone-200">
-                  /{cat.slug}
-                </span>
-              </div>
+            {cat.subtitle && (
+              <p className="text-xs text-stone-600 line-clamp-1 pt-1 border-t border-stone-100">
+                {cat.subtitle}
+              </p>
+            )}
 
-              {/* Actions Footer */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-50">
-                <button
-                  type="button"
-                  onClick={() => openEditModal(cat)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:text-doibrand-gold hover:border-doibrand-gold transition-colors"
+            {/* Actions Footer */}
+            <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+              <Link
+                href={`/category/${cat.slug}`}
+                target="_blank"
+                className="text-xs text-doibrand-accent hover:underline flex items-center gap-1"
+              >
+                <span>স্টোরে দেখুন</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/admin/categories/new?id=${cat.id}`}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-50"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
                   <span>এডিট</span>
-                </button>
+                </Link>
 
                 <button
                   type="button"
                   onClick={() => handleDelete(cat.id, cat.nameBn)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-100 bg-red-50 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-red-100 bg-red-50 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>ডিলিট</span>
                 </button>
               </div>
             </div>
-          );
-        })}
-      </div>
-
-      {/* ── Modal: Add / Edit Category ─────────────────────────────────── */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100">
-            <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-              <h3 className="font-bold text-lg text-doibrand-dark">
-                {editingCategory ? "ক্যাটাগরি সম্পাদনা করুন" : "নতুন ক্যাটাগরি যোগ করুন"}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} className="py-4 space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  ক্যাটাগরির নাম (বাংলা) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formNameBn}
-                  onChange={(e) => setFormNameBn(e.target.value)}
-                  placeholder="যেমন: প্রিমিয়াম দই"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold font-bengali"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  Category Name (English)
-                </label>
-                <input
-                  type="text"
-                  value={formNameEn}
-                  onChange={(e) => setFormNameEn(e.target.value)}
-                  placeholder="e.g. Premium Doi"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold font-sans"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  URL Slug *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formSlug}
-                  onChange={(e) => setFormSlug(e.target.value)}
-                  placeholder="e.g. premium-doi"
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm font-mono focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1.5">
-                  বর্তমান পণ্যের সংখ্যা
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formProducts}
-                  onChange={(e) => setFormProducts(Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-xl p-3 text-sm font-sans focus:outline-none focus:border-doibrand-gold focus:ring-1 focus:ring-doibrand-gold"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="w-1/2 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors cursor-pointer"
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="w-1/2 py-2.5 bg-doibrand-dark text-white rounded-xl text-sm font-semibold hover:bg-stone-900 transition-colors cursor-pointer"
-                >
-                  {editingCategory ? "আপডেট করুন" : "যোগ করুন"}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   );
 }
