@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Anek_Bangla, Hind_Siliguri } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MobileBottomNav from "@/components/layout/MobileBottomNav";
@@ -7,21 +6,8 @@ import CartDrawer from "@/components/ui/CartDrawer";
 import { CartProvider } from "@/context/CartContext";
 import { SITE } from "@/lib/site";
 import { JsonLd, organizationSchema, websiteSchema } from "@/lib/seo";
+import "@/styles/fonts.css";
 import "./globals.css";
-
-const anekBangla = Anek_Bangla({
-  subsets: ["bengali", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-anek-bangla",
-  display: "swap",
-});
-
-const hindSiliguri = Hind_Siliguri({
-  subsets: ["bengali", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-hind-siliguri",
-  display: "swap",
-});
 
 const defaultTitle = `${SITE.name} | ${SITE.tagline} — ${SITE.englishName}`;
 
@@ -111,9 +97,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="bn" className="scroll-smooth">
-      <body
-        className={`${anekBangla.variable} ${hindSiliguri.variable} font-bengali bg-doibrand-light text-doibrand-dark antialiased min-h-screen flex flex-col`}
-      >
+      <body className="font-bengali bg-doibrand-light text-doibrand-dark antialiased min-h-screen flex flex-col">
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <CartProvider>
           <Header />

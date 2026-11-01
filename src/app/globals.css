@@ -8,9 +8,11 @@
   --color-doibrand-accent: #A95E35;
   /* Wider site shell on large monitors (default 7xl = 80rem / 1280px) */
   --container-7xl: 100rem; /* 1600px — less empty side gutters */
-  --font-bengali: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
-  --font-hind: 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
-  --font-sans: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+  --font-anek-bangla: "Anek Bangla", sans-serif;
+  --font-hind-siliguri: "Hind Siliguri", sans-serif;
+  --font-bengali: "Anek Bangla", "Hind Siliguri", sans-serif;
+  --font-hind: "Hind Siliguri", "Anek Bangla", sans-serif;
+  --font-sans: "Anek Bangla", "Hind Siliguri", sans-serif;
 
   /* ── Typography prose brand tokens ─────────────────────────────── */
   --tw-prose-body: #4b5563;
@@ -63,7 +65,7 @@
 
 /* Global Font Setting across full website */
 *, html, body, input, button, select, textarea {
-  font-family: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
+  font-family: "Anek Bangla", "Hind Siliguri", sans-serif;
 }
 
 /* Hide scrollbar utility */
