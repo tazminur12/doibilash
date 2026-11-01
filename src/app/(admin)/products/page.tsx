@@ -19,23 +19,36 @@ import {
   AlertCircle,
   Sparkles,
 } from "lucide-react";
-import {
-  StoredProduct,
-  getStoredProducts,
-  deleteProduct,
-} from "@/lib/productStorage";
+import type { StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<StoredProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [stockFilter, setStockFilter] = useState("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Load from storage
+  const loadProducts = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/products");
+      const data = await res.json();
+      if (res.ok && data.ok && Array.isArray(data.products)) {
+        setProducts(data.products);
+      } else {
+        setProducts([]);
+      }
+    } catch {
+      setProducts([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setProducts(getStoredProducts());
+    loadProducts();
   }, []);
 
   const showToast = (msg: string) => {
@@ -43,11 +56,22 @@ export default function AdminProductsPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`আপনি কি "${name}" পণ্যটি তালিকা থেকে মুছে ফেলতে চান?`)) {
-      const updated = deleteProduct(id);
-      setProducts(updated);
-      showToast(`"${name}" পণ্য সফলভাবে মুছে ফেলা হয়েছে`);
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`আপনি কি "${name}" পণ্যটি তালিকা থেকে মুছে ফেলতে চান?`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/products/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "পণ্য মুছে ফেলা যায়নি");
+        return;
+      }
+      showToast(data.message || `"${name}" পণ্য সফলভাবে মুছে ফেলা হয়েছে`);
+      loadProducts();
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
     }
   };
 
@@ -222,7 +246,13 @@ export default function AdminProductsPage() {
             </thead>
 
             <tbody className="divide-y divide-stone-100 text-stone-800">
-              {filteredProducts.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-stone-400 text-sm">
+                    পণ্য তালিকা লোড হচ্ছে...
+                  </td>
+                </tr>
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-stone-400 text-sm">
                     কোনো পণ্য খুঁজে পাওয়া যায়নি।

@@ -1,5 +1,5 @@
 export type TeamRole = "Super Admin" | "Manager" | "Moderator" | "Staff";
-export type MemberStatus = "Active" | "Inactive" | "Suspended";
+export type MemberStatus = "Active" | "Inactive" | "Suspended" | "Invited";
 
 export interface RolePermission {
   id: string;
@@ -72,6 +72,7 @@ export interface TeamMember {
   joinedDate: string;
   lastLogin: string;
   notes?: string;
+  invitePending?: boolean;
 }
 
 export const ROLE_META: Record<
@@ -196,65 +197,3 @@ export const DEFAULT_TEAM_MEMBERS: TeamMember[] = [
     notes: "মাটির হাঁড়ির নিরাপদ বাবল র‍্যাপ প্যাকিং ও কুরিয়ার হ্যান্ডওভার।",
   },
 ];
-
-const STORAGE_KEY = "doibilash_admin_team_v1";
-
-export function getStoredTeamMembers(): TeamMember[] {
-  if (typeof window === "undefined") {
-    return DEFAULT_TEAM_MEMBERS;
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_TEAM_MEMBERS));
-      return DEFAULT_TEAM_MEMBERS;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return DEFAULT_TEAM_MEMBERS;
-  } catch {
-    return DEFAULT_TEAM_MEMBERS;
-  }
-}
-
-export function saveTeamMember(member: TeamMember): TeamMember[] {
-  const members = getStoredTeamMembers();
-  const index = members.findIndex((m) => m.id === member.id || m.email === member.email);
-
-  let updated: TeamMember[];
-  if (index >= 0) {
-    updated = [...members];
-    updated[index] = { ...member };
-  } else {
-    updated = [member, ...members];
-  }
-
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error("Failed to save team member to localStorage", err);
-    }
-  }
-  return updated;
-}
-
-export function deleteTeamMember(id: string): TeamMember[] {
-  const members = getStoredTeamMembers();
-  const updated = members.filter((m) => m.id !== id);
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error("Failed to delete team member from localStorage", err);
-    }
-  }
-  return updated;
-}
-
-export function getTeamMemberById(id: string): TeamMember | undefined {
-  const members = getStoredTeamMembers();
-  return members.find((m) => m.id === id || m.email === id);
-}

@@ -43,6 +43,22 @@ model User {
   @@map("users")
 }
 
+/** Email-based password reset (customer User or TeamMember) via Resend */
+model PasswordReset {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  email       String
+  accountType String    @map("account_type") // "user" | "team"
+  accountId   String    @map("account_id")
+  expiresAt   DateTime  @map("expires_at")
+  usedAt      DateTime? @map("used_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([email])
+  @@index([accountId])
+  @@map("password_resets")
+}
+
 model Order {
   id              String      @id @default(uuid())
   orderNumber     String      @unique @map("order_number")
@@ -72,21 +88,23 @@ model Order {
 }
 
 model TeamMember {
-  id             String    @id @default(uuid())
-  name           String
-  email          String    @unique
-  phone          String    @unique
-  role           String    @default("Staff")
-  designation    String    @default("টিম মেম্বার")
-  status         String    @default("Active")
-  avatarUrl      String?   @map("avatar_url")
-  avatarInitials String    @default("TM") @map("avatar_initials")
-  permissions    Json      @default("[]")
-  passwordHash   String?   @map("password_hash")
-  notes          String?
-  lastLogin      DateTime? @map("last_login")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  name            String
+  email           String    @unique
+  phone           String?   @unique
+  role            String    @default("Staff")
+  designation     String    @default("টিম মেম্বার")
+  status          String    @default("Active")
+  avatarUrl       String?   @map("avatar_url")
+  avatarInitials  String    @default("TM") @map("avatar_initials")
+  permissions     Json      @default("[]")
+  passwordHash    String?   @map("password_hash")
+  inviteToken     String?   @unique @map("invite_token")
+  inviteExpiresAt DateTime? @map("invite_expires_at")
+  notes           String?
+  lastLogin       DateTime? @map("last_login")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   @@index([role])
   @@index([status])
@@ -233,6 +251,86 @@ model Category {
   @@index([status])
   @@index([isFeatured])
   @@map("categories")
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  slug          String   @unique
+  name          String
+  nameEn        String   @map("name_en")
+  category      String
+  price         Float
+  originalPrice Float?   @map("original_price")
+  unit          String   @default("১ কেজি মাটির সরা")
+  stockStatus   String   @default("In Stock") @map("stock_status")
+  stockQuantity Int      @default(0) @map("stock_quantity")
+  image         String
+  galleryImages Json     @default("[]") @map("gallery_images")
+  description   String   @default("")
+  features      Json     @default("[]")
+  badge         String?
+  isFeatured    Boolean  @default(false) @map("is_featured")
+  rating        Float    @default(5)
+  reviewsCount  Int      @default(0) @map("reviews_count")
+  status        String   @default("Active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@index([category])
+  @@index([stockStatus])
+  @@index([isFeatured])
+  @@index([status])
+  @@map("products")
+}
+
+model CorporateOrder {
+  id                   String   @id @default(uuid())
+  quotationNo          String   @unique @map("quotation_no")
+  companyName          String   @map("company_name")
+  contactPerson        String   @map("contact_person")
+  designation          String   @default("")
+  phone                String
+  email                String   @default("")
+  eventType            String   @map("event_type")
+  deliveryDate         String   @default("") @map("delivery_date")
+  deliveryAddress      String   @default("") @map("delivery_address")
+  approxQuantityText   String   @default("") @map("approx_quantity_text")
+  items                Json     @default("[]")
+  subtotal             Float    @default(0)
+  vatOrTaxPercent      Float    @default(0) @map("vat_or_tax_percent")
+  vatOrTaxAmount       Float    @default(0) @map("vat_or_tax_amount")
+  customBrandingFee    Float    @default(0) @map("custom_branding_fee")
+  totalBudget          Float    @default(0) @map("total_budget")
+  advancePaid          Float    @default(0) @map("advance_paid")
+  dueAmount            Float    @default(0) @map("due_amount")
+  paymentTerms         String   @default("") @map("payment_terms")
+  status               String   @default("New Lead")
+  assignedManager      String   @default("") @map("assigned_manager")
+  customLogoBranding   Boolean  @default(false) @map("custom_logo_branding")
+  notes                String?
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([companyName])
+  @@index([createdAt])
+  @@map("corporate_orders")
+}
+
+model HeroBanner {
+  id        String   @id @default(uuid())
+  imageUrl  String   @map("image_url")
+  publicId  String?  @map("public_id")
+  altText   String   @default("দই বিলাস হিরো ব্যানার") @map("alt_text")
+  link      String   @default("/shop")
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@map("hero_banners")
 }
 
 

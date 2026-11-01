@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import {
   SlidersHorizontal,
@@ -27,136 +27,9 @@ interface CategoryOption {
   englishName: string;
 }
 
-const CATEGORIES: CategoryOption[] = [
-  { id: "doi", name: "বগুড়ার দই", englishName: "Doi" },
-  { id: "ghee", name: "গাওয়া ঘি", englishName: "Ghee" },
-  { id: "honey", name: "খাঁটি মধু", englishName: "Honey" },
-  { id: "sweets", name: "ঐতিহ্যবাহী মিষ্টি", englishName: "Sweets" },
-  { id: "dates-nuts", name: "খেজুর ও বাদাম", englishName: "Dates & Nuts" },
-];
-
 type ShopProduct = ProductItem & { category: string; numericPrice: number; numericOriginal: number };
 
-const SHOP_PRODUCTS: ShopProduct[] = [
-  {
-    id: 1,
-    slug: "bogra-special-doi",
-    title: "বগুড়ার স্পেশাল সরার দই",
-    price: "৳ 500",
-    numericPrice: 500,
-    originalPrice: "৳ 600",
-    numericOriginal: 600,
-    image: "/Product/doi.jpg",
-    badge: "Hot Sale",
-    unit: "১ কেজি সরা",
-    category: "doi",
-  },
-  {
-    id: 2,
-    slug: "special-ghee-roasted-laccha-semai",
-    title: "গাওয়া ঘিয়ে ভাজা স্পেশাল লাচ্ছা সেমাই",
-    price: "৳ 480",
-    numericPrice: 480,
-    originalPrice: "৳ 560",
-    numericOriginal: 560,
-    image: "/Product/laccha_semai.jpg",
-    badge: "হট ডিল",
-    unit: "৫০০ গ্রাম বক্স",
-    category: "sweets",
-  },
-  {
-    id: 3,
-    slug: "mini-doi-cup",
-    title: "স্পেশাল মাটির কাপ দই (৪ পিস)",
-    price: "৳ 420",
-    numericPrice: 420,
-    originalPrice: "৳ 480",
-    numericOriginal: 480,
-    image: "/Product/mini_doi.png",
-    badge: "জনপ্রিয়",
-    unit: "৪ কাপ বক্স",
-    category: "doi",
-  },
-  {
-    id: 4,
-    slug: "mango-special-doi",
-    title: "আমের স্পেশাল শাহী মিষ্টি দই",
-    price: "৳ 550",
-    numericPrice: 550,
-    originalPrice: "৳ 650",
-    numericOriginal: 650,
-    image: "/Product/mango.jpg",
-    badge: "স্পেশাল",
-    unit: "১ কেজি সরা",
-    category: "doi",
-  },
-  {
-    id: 5,
-    slug: "pure-ghee",
-    title: "খাঁটি গাওয়া ঘি (দানাদার)",
-    price: "৳ 1,450",
-    numericPrice: 1450,
-    originalPrice: "৳ 1,600",
-    numericOriginal: 1600,
-    image:
-      "/Product/placeholder.svg",
-    badge: "Discount",
-    unit: "৯০০ গ্রাম জার",
-    category: "ghee",
-  },
-  {
-    id: 6,
-    slug: "sundarban-honey",
-    title: "সুন্দরবনের প্রাকৃতিক মধু",
-    price: "৳ 850",
-    numericPrice: 850,
-    originalPrice: "৳ 980",
-    numericOriginal: 980,
-    image:
-      "/Product/placeholder.svg",
-    badge: "Hot Sale",
-    unit: "৫০০ গ্রাম বোতল",
-    category: "honey",
-  },
-  {
-    id: 7,
-    slug: "sponge-rosogolla",
-    title: "ঐতিহ্যবাহী স্পঞ্জ রসগোল্লা",
-    price: "৳ 420",
-    numericPrice: 420,
-    originalPrice: "৳ 480",
-    numericOriginal: 480,
-    image:
-      "/Product/placeholder.svg",
-    badge: "Discount",
-    unit: "১ কেজি বক্স",
-    category: "sweets",
-  },
-  {
-    id: 8,
-    slug: "ajwa-dates",
-    title: "প্রিমিয়াম খোরমা খেজুর",
-    price: "৳ 750",
-    numericPrice: 750,
-    originalPrice: "৳ 900",
-    numericOriginal: 900,
-    image:
-      "/Product/placeholder.svg",
-    badge: "Hot Sale",
-    unit: "১ কেজি প্যাকেট",
-    category: "dates-nuts",
-  },
-];
-
-const PRICE_MIN = 300;
-const PRICE_MAX = 2000;
 const PAGE_SIZE = 9;
-
-const PRICE_PRESETS = [
-  { label: "৳৫০০ এর নিচে", min: PRICE_MIN, max: 500 },
-  { label: "৳৫০০ – ৳১,০০০", min: 500, max: 1000 },
-  { label: "৳১,০০০+", min: 1000, max: PRICE_MAX },
-];
 
 const SORT_OPTIONS = [
   { value: "latest", label: "সর্বশেষ" },
@@ -165,15 +38,13 @@ const SORT_OPTIONS = [
   { value: "discount", label: "সর্বোচ্চ ছাড়" },
 ];
 
-const CATEGORY_COUNTS = CATEGORIES.reduce<Record<string, number>>((acc, cat) => {
-  acc[cat.id] = SHOP_PRODUCTS.filter((p) => p.category === cat.id).length;
-  return acc;
-}, {});
-
-
 const discountOf = (p: ShopProduct) => (p.numericOriginal - p.numericPrice) / p.numericOriginal;
 
 interface FilterPanelProps {
+  categories: CategoryOption[];
+  categoryCounts: Record<string, number>;
+  priceBounds: { min: number; max: number };
+  pricePresets: { label: string; min: number; max: number }[];
   selectedCategories: string[];
   toggleCategory: (id: string) => void;
   minPrice: number;
@@ -183,6 +54,10 @@ interface FilterPanelProps {
 }
 
 function FilterPanel({
+  categories,
+  categoryCounts,
+  priceBounds,
+  pricePresets,
   selectedCategories,
   toggleCategory,
   minPrice,
@@ -199,7 +74,7 @@ function FilterPanel({
           ক্যাটাগরি
         </h3>
         <div className="space-y-1.5">
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const isChecked = selectedCategories.includes(cat.id);
             return (
               <button
@@ -231,7 +106,7 @@ function FilterPanel({
                     isChecked ? "bg-white text-doibrand-accent" : "bg-stone-100 text-stone-500"
                   }`}
                 >
-                  {toBnDigits(CATEGORY_COUNTS[cat.id])}
+                  {toBnDigits(categoryCounts[cat.id] || 0)}
                 </span>
               </button>
             );
@@ -247,12 +122,12 @@ function FilterPanel({
         </h3>
 
         <PriceRangeFilter
-          bounds={{ min: PRICE_MIN, max: PRICE_MAX }}
+          bounds={priceBounds}
           minPrice={minPrice}
           maxPrice={maxPrice}
           onMinChange={setMinPrice}
           onMaxChange={setMaxPrice}
-          presets={PRICE_PRESETS}
+          presets={pricePresets}
         />
       </div>
     </div>
@@ -260,13 +135,115 @@ function FilterPanel({
 }
 
 export default function ShopPage() {
+  const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [priceMin, setPriceMin] = useState(0);
+  const [priceMax, setPriceMax] = useState(5000);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number>(PRICE_MIN);
-  const [maxPrice, setMaxPrice] = useState<number>(PRICE_MAX);
+  const [minPrice, setMinPrice] = useState<number>(0);
+  const [maxPrice, setMaxPrice] = useState<number>(5000);
   const [sortBy, setSortBy] = useState<string>("latest");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const closeMobileFilter = useCallback(() => setIsMobileFilterOpen(false), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [prodRes, catRes] = await Promise.all([
+          fetch("/api/products"),
+          fetch("/api/categories"),
+        ]);
+        const prodData = await prodRes.json();
+        const catData = await catRes.json();
+        if (cancelled) return;
+
+        const rawProducts = Array.isArray(prodData.products) ? prodData.products : [];
+        const mapped: ShopProduct[] = rawProducts.map((p: {
+          id: string;
+          slug: string;
+          name: string;
+          category: string;
+          price: number;
+          originalPrice?: number;
+          image: string;
+          badge?: string;
+          unit?: string;
+        }) => ({
+          id: p.id,
+          slug: p.slug,
+          title: p.name,
+          price: `৳ ${Number(p.price).toLocaleString("en-US")}`,
+          numericPrice: Number(p.price) || 0,
+          originalPrice: p.originalPrice
+            ? `৳ ${Number(p.originalPrice).toLocaleString("en-US")}`
+            : undefined,
+          numericOriginal: Number(p.originalPrice || p.price) || 0,
+          image: p.image || "/Product/placeholder.svg",
+          badge: p.badge,
+          unit: p.unit,
+          category: p.category,
+        }));
+        setProducts(mapped);
+
+        const prices = mapped.map((p) => p.numericPrice);
+        const pMin = prices.length ? Math.min(...prices) : 0;
+        const pMax = prices.length ? Math.max(...prices) : 5000;
+        const padMin = Math.max(0, Math.floor(pMin / 50) * 50);
+        const padMax = Math.ceil(pMax / 50) * 50 || 5000;
+        setPriceMin(padMin);
+        setPriceMax(padMax);
+        setMinPrice(padMin);
+        setMaxPrice(padMax);
+
+        const rawCats = Array.isArray(catData.categories) ? catData.categories : [];
+        if (rawCats.length > 0) {
+          setCategories(
+            rawCats.map((c: { slug: string; nameBn: string; name: string }) => ({
+              id: c.slug,
+              name: c.nameBn || c.name,
+              englishName: c.name,
+            }))
+          );
+        } else {
+          const unique = Array.from(new Set(mapped.map((p) => p.category).filter(Boolean)));
+          setCategories(
+            unique.map((id) => ({
+              id,
+              name: id,
+              englishName: id,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error("Shop catalog load failed:", err);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const categoryCounts = useMemo(() => {
+    return categories.reduce<Record<string, number>>((acc, cat) => {
+      acc[cat.id] = products.filter((p) => p.category === cat.id).length;
+      return acc;
+    }, {});
+  }, [categories, products]);
+
+  const pricePresets = useMemo(() => {
+    const mid = Math.round((priceMin + priceMax) / 2);
+    return [
+      { label: `৳${priceMin} – ৳${mid}`, min: priceMin, max: mid },
+      { label: `৳${mid}+`, min: mid, max: priceMax },
+    ];
+  }, [priceMin, priceMax]);
 
   const toggleCategory = (catId: string) => {
     setCurrentPage(1);
@@ -286,16 +263,16 @@ export default function ShopPage() {
 
   const handleClearFilters = () => {
     setSelectedCategories([]);
-    setMinPrice(PRICE_MIN);
-    setMaxPrice(PRICE_MAX);
+    setMinPrice(priceMin);
+    setMaxPrice(priceMax);
     setCurrentPage(1);
   };
 
-  const isPriceFiltered = minPrice > PRICE_MIN || maxPrice < PRICE_MAX;
+  const isPriceFiltered = minPrice > priceMin || maxPrice < priceMax;
   const activeFilterCount = selectedCategories.length + (isPriceFiltered ? 1 : 0);
 
   const filteredProducts = useMemo(() => {
-    return SHOP_PRODUCTS.filter((product) => {
+    return products.filter((product) => {
       if (selectedCategories.length > 0 && !selectedCategories.includes(product.category)) return false;
       if (product.numericPrice < minPrice || product.numericPrice > maxPrice) return false;
       return true;
@@ -305,7 +282,7 @@ export default function ShopPage() {
       if (sortBy === "discount") return discountOf(b) - discountOf(a);
       return 0;
     });
-  }, [selectedCategories, minPrice, maxPrice, sortBy]);
+  }, [products, selectedCategories, minPrice, maxPrice, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const page = Math.min(currentPage, totalPages);
@@ -313,6 +290,10 @@ export default function ShopPage() {
   const pagedProducts = filteredProducts.slice(pageStart, pageStart + PAGE_SIZE);
 
   const filterPanelProps: FilterPanelProps = {
+    categories,
+    categoryCounts,
+    priceBounds: { min: priceMin, max: priceMax },
+    pricePresets,
     selectedCategories,
     toggleCategory,
     minPrice,
@@ -352,7 +333,7 @@ export default function ShopPage() {
             </div>
             <ul className="flex flex-wrap gap-2">
               {[
-                { icon: LayoutGrid, text: `${toBnDigits(SHOP_PRODUCTS.length)}টি পণ্য` },
+                { icon: LayoutGrid, text: `${toBnDigits(products.length)}টি পণ্য` },
                 { icon: Wallet, text: "ক্যাশ অন ডেলিভারি" },
                 { icon: Snowflake, text: "কোল্ড-চেইন ডেলিভারি" },
               ].map(({ icon: Icon, text }) => (
@@ -386,7 +367,7 @@ export default function ShopPage() {
           >
             সব পণ্য
           </button>
-          {CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const active = selectedCategories.includes(cat.id);
             return (
               <button
@@ -402,7 +383,7 @@ export default function ShopPage() {
               >
                 {cat.name}
                 <span className={`text-[10px] ${active ? "text-white/80" : "text-stone-400"}`}>
-                  {toBnDigits(CATEGORY_COUNTS[cat.id])}
+                  {toBnDigits(categoryCounts[cat.id] || 0)}
                 </span>
               </button>
             );
@@ -478,7 +459,7 @@ export default function ShopPage() {
             {activeFilterCount > 0 && (
               <div className="w-full flex flex-wrap items-center gap-2 pt-3 border-t border-doibrand-gold/15">
                 {selectedCategories.map((id) => {
-                  const cat = CATEGORIES.find((c) => c.id === id);
+                  const cat = categories.find((c) => c.id === id);
                   return (
                     <button
                       key={id}
@@ -495,8 +476,8 @@ export default function ShopPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      updateMin(PRICE_MIN);
-                      updateMax(PRICE_MAX);
+                      updateMin(priceMin);
+                      updateMax(priceMax);
                     }}
                     className="inline-flex items-center gap-1 rounded-full bg-[#FBF1E4] px-2.5 py-1 text-[11px] font-semibold text-doibrand-accent ring-1 ring-doibrand-gold/25 hover:bg-doibrand-gold/20 transition cursor-pointer font-sans"
                   >
@@ -516,7 +497,11 @@ export default function ShopPage() {
           </div>
 
           {/* Grid / Empty State */}
-          {pagedProducts.length === 0 ? (
+          {isLoading ? (
+            <div className="rounded-3xl bg-white p-10 sm:p-14 text-center ring-1 ring-stone-200/70 text-sm text-stone-500">
+              পণ্য লোড হচ্ছে...
+            </div>
+          ) : pagedProducts.length === 0 ? (
             <div className="rounded-3xl bg-white p-10 sm:p-14 text-center ring-1 ring-stone-200/70">
               <span className="mx-auto w-16 h-16 grid place-items-center rounded-full bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent ring-8 ring-[#FBF1E4]">
                 <PackageSearch className="w-7 h-7" />

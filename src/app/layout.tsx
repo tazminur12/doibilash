@@ -6,6 +6,7 @@ import MobileBottomNav from "@/components/layout/MobileBottomNav";
 import CartDrawer from "@/components/ui/CartDrawer";
 import { CartProvider } from "@/context/CartContext";
 import { SITE } from "@/lib/site";
+import { JsonLd, organizationSchema, websiteSchema } from "@/lib/seo";
 import "./globals.css";
 
 const anekBangla = Anek_Bangla({
@@ -37,15 +38,31 @@ export const metadata: Metadata = {
   creator: SITE.englishName,
   publisher: SITE.englishName,
   category: "food",
+  classification: "E-commerce, Food & Grocery, Bengali Sweets",
+  referrer: "origin-when-cross-origin",
   formatDetection: { telephone: true, email: true, address: false },
+  alternates: {
+    canonical: "/",
+    languages: {
+      "bn-BD": "/",
+      "x-default": "/",
+    },
+  },
   openGraph: {
     type: "website",
     locale: "bn_BD",
+    alternateLocale: ["en_US"],
     url: SITE.url,
     siteName: `${SITE.name} — ${SITE.englishName}`,
     title: defaultTitle,
     description: SITE.description,
-    images: [{ ...SITE.ogImage, alt: `${SITE.name} — ${SITE.tagline}` }],
+    images: [
+      {
+        ...SITE.ogImage,
+        alt: `${SITE.name} — ${SITE.tagline}`,
+        type: "image/png",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -56,37 +73,35 @@ export const metadata: Metadata = {
   robots: {
     index: true,
     follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  verification: {
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+      : {}),
+  },
+  other: {
+    "geo.region": "BD-13",
+    "geo.placename": "Dhaka",
+    "content-language": "bn",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: SITE.themeColor,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: SITE.themeColor },
+    { media: "(prefers-color-scheme: dark)", color: SITE.themeColor },
+  ],
   width: "device-width",
   initialScale: 1,
-};
-
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FoodEstablishment",
-  name: SITE.name,
-  alternateName: SITE.englishName,
-  url: SITE.url,
-  logo: `${SITE.url}/Logo/logo.png`,
-  image: `${SITE.url}${SITE.ogImage.url}`,
-  description: SITE.description,
-  telephone: SITE.phone,
-  email: SITE.email,
-  servesCuisine: "Bengali sweets and dairy",
-  priceRange: "৳৳",
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: SITE.address.street,
-    addressLocality: SITE.address.city,
-    postalCode: SITE.address.postalCode,
-    addressCountry: SITE.address.country,
-  },
-  sameAs: [...SITE.socials],
+  maximumScale: 5,
+  colorScheme: "light",
 };
 
 export default function RootLayout({
@@ -99,10 +114,7 @@ export default function RootLayout({
       <body
         className={`${anekBangla.variable} ${hindSiliguri.variable} font-bengali bg-doibrand-light text-doibrand-dark antialiased min-h-screen flex flex-col`}
       >
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd).replace(/</g, "\\u003c") }}
-        />
+        <JsonLd data={[organizationSchema(), websiteSchema()]} />
         <CartProvider>
           <Header />
           <div className="flex-1 pb-16 md:pb-0">{children}</div>

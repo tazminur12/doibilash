@@ -40,21 +40,8 @@ import {
   StoredPromoCode,
   StoredFlashDeal,
   CampaignSettings,
-  getStoredPromos,
-  savePromo,
-  deletePromo,
-  togglePromoActive,
-  getStoredFlashDeals,
-  saveFlashDeal,
-  deleteFlashDeal,
-  toggleFlashDealActive,
-  getStoredCampaignSettings,
-  saveCampaignSettings,
-  STORAGE_KEY_PROMOS,
-  STORAGE_KEY_FLASH,
-  STORAGE_KEY_CAMPAIGN,
 } from "@/lib/offerStorage";
-import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
+import type { StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_FLASH_IMAGES = [
@@ -185,15 +172,9 @@ export default function AdminOffersPage() {
         if (json.ok) {
           if (json.promos) {
             setPromos(json.promos);
-            if (typeof window !== "undefined") {
-              localStorage.setItem(STORAGE_KEY_PROMOS, JSON.stringify(json.promos));
-            }
           }
           if (json.flashDeals) {
             setFlashDeals(json.flashDeals);
-            if (typeof window !== "undefined") {
-              localStorage.setItem(STORAGE_KEY_FLASH, JSON.stringify(json.flashDeals));
-            }
           }
           if (json.campaign) {
             setCampaign(json.campaign);
@@ -205,27 +186,23 @@ export default function AdminOffersPage() {
             setCampBannerActive(json.campaign.bannerActive !== false);
             setCampAnnouncement(json.campaign.announcementText || "");
             setCampBannerUrl(json.campaign.bannerUrl || "");
-            if (typeof window !== "undefined") {
-              localStorage.setItem(STORAGE_KEY_CAMPAIGN, JSON.stringify(json.campaign));
-            }
           }
         }
       }
     } catch (err) {
       console.error("Failed to load offers from server:", err);
-      setPromos(getStoredPromos());
-      setFlashDeals(getStoredFlashDeals());
-      const c = getStoredCampaignSettings();
-      setCampaign(c);
-      setCampBadge(c.badge);
-      setCampTitle(c.title);
-      setCampHighlight(c.highlightText);
-      setCampDesc(c.description);
-      setCampEnd(c.campaignEnd ? c.campaignEnd.slice(0, 16) : "");
-      setCampBannerActive(c.bannerActive);
-      setCampAnnouncement(c.announcementText || "");
     }
-    setProducts(getStoredProducts());
+    try {
+      const prodRes = await fetch("/api/admin/products");
+      if (prodRes.ok) {
+        const prodJson = await prodRes.json();
+        if (prodJson.ok && Array.isArray(prodJson.products)) {
+          setProducts(prodJson.products);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load products from server:", err);
+    }
   };
 
   useEffect(() => {

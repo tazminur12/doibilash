@@ -30,9 +30,6 @@ import {
   StoredOrder,
   OrderStatus,
   STATUS_META,
-  getOrderById,
-  updateOrderStatus,
-  deleteOrder,
 } from "@/lib/orderStorage";
 import OrderInvoice from "@/components/admin/OrderInvoice";
 import { toBnDigits } from "@/lib/bangla";
@@ -40,21 +37,46 @@ import { toBnDigits } from "@/lib/bangla";
 export default function OrderDetailView({ orderId }: { orderId: string }) {
   const router = useRouter();
   const [order, setOrder] = useState<StoredOrder | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showInvoiceView, setShowInvoiceView] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const found = getOrderById(orderId);
-    if (found) {
-      setOrder(found);
-    }
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && data.order) {
+          setOrder(data.order);
+          return;
+        }
+      } catch {
+        /* order stays unavailable */
+      }
+      if (!cancelled) setOrder(null);
+    })().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  if (isLoading) {
+    return (
+      <div className="font-bengali p-12 text-center text-stone-500 text-sm">
+        অর্ডার লোড হচ্ছে...
+      </div>
+    );
+  }
 
   if (!order) {
     return (
@@ -73,11 +95,24 @@ export default function OrderDetailView({ orderId }: { orderId: string }) {
 
   const statusMeta = STATUS_META[order.status] || STATUS_META.Pending;
 
-  const handleStatusChange = (newStatus: OrderStatus) => {
-    const updated = updateOrderStatus(order.id, newStatus);
-    const found = updated.find((o) => o.id === order.id);
-    if (found) setOrder(found);
-    showToast(`অর্ডার স্ট্যাটাস "${STATUS_META[newStatus].labelBn}" এ পরিবর্তন করা হয়েছে`);
+  const handleStatusChange = async (newStatus: OrderStatus) => {
+    try {
+      const res = await fetch(`/api/admin/orders/${encodeURIComponent(order.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "স্ট্যাটাস আপডেট ব্যর্থ");
+        return;
+      }
+      const updated = (data.order as StoredOrder) || { ...order, status: newStatus };
+      setOrder(updated);
+      showToast(`অর্ডার স্ট্যাটাস "${STATUS_META[newStatus].labelBn}" এ পরিবর্তন করা হয়েছে`);
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
+    }
   };
 
   const copyPhoneNumber = () => {
@@ -86,10 +121,20 @@ export default function OrderDetailView({ orderId }: { orderId: string }) {
     setTimeout(() => setCopiedPhone(false), 2000);
   };
 
-  const handleDelete = () => {
-    if (confirm(`আপনি কি "${order.id}" অর্ডারটি মুছে ফেলতে চান?`)) {
-      deleteOrder(order.id);
+  const handleDelete = async () => {
+    if (!confirm(`আপনি কি "${order.id}" অর্ডারটি মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`/api/admin/orders/${encodeURIComponent(order.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "মুছে ফেলা যায়নি");
+        return;
+      }
       router.push("/admin/orders");
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
     }
   };
 

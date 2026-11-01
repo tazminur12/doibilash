@@ -28,6 +28,8 @@ import {
   Briefcase,
   AlertTriangle,
   Info,
+  SendHorizonal,
+  KeyRound,
 } from "lucide-react";
 import {
   TeamMember,
@@ -35,9 +37,6 @@ import {
   MemberStatus,
   ROLE_META,
   ALL_PERMISSIONS,
-  getStoredTeamMembers,
-  saveTeamMember,
-  deleteTeamMember,
 } from "@/lib/teamStorage";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -96,6 +95,7 @@ export default function AdminTeamPage() {
   }, [sweetAlert.isOpen]);
 
   // Form Fields
+  const [createMode, setCreateMode] = useState<"invite" | "manual">("invite");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -114,11 +114,11 @@ export default function AdminTeamPage() {
       if (data.ok && Array.isArray(data.members)) {
         setMembers(data.members);
       } else {
-        setMembers(getStoredTeamMembers());
+        setMembers([]);
       }
     } catch (err) {
-      console.error("Failed to fetch team members from backend, using fallback:", err);
-      setMembers(getStoredTeamMembers());
+      console.error("Failed to fetch team members from backend:", err);
+      setMembers([]);
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +136,7 @@ export default function AdminTeamPage() {
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingMember(null);
+    setCreateMode("invite");
     setName("");
     setEmail("");
     setPhone("");
@@ -151,16 +152,46 @@ export default function AdminTeamPage() {
   // Open Edit Modal
   const handleOpenEditModal = (member: TeamMember) => {
     setEditingMember(member);
+    setCreateMode("manual");
     setName(member.name);
     setEmail(member.email);
     setPhone(member.phone);
     setDesignation(member.designation);
     setRole(member.role);
-    setStatus(member.status);
+    setStatus(member.status === "Invited" ? "Active" : member.status);
     setPermissions(member.permissions);
     setPassword("");
     setNotes(member.notes || "");
     setIsModalOpen(true);
+  };
+
+  const handleResendInvite = async (member: TeamMember) => {
+    try {
+      const res = await fetch(`/api/admin/team/${member.id}/resend-invite`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        fireAlert({
+          type: "error",
+          title: "পুনরায় পাঠানো যায়নি",
+          message: data.error || "ইনভাইট ইমেইল পাঠাতে সমস্যা হয়েছে।",
+        });
+        return;
+      }
+      fireAlert({
+        type: data.emailSent === false ? "warning" : "success",
+        title: data.emailSent === false ? "লিংক নবায়ন হয়েছে" : "ইনভাইট পাঠানো হয়েছে!",
+        message: data.message,
+      });
+      loadData();
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক ত্রুটি",
+        message: "সার্ভারে সংযোগ করা যায়নি।",
+      });
+    }
   };
 
   // Handle Role Change in Form (auto-select default permissions)
@@ -214,10 +245,19 @@ export default function AdminTeamPage() {
       return;
     }
 
+    if (!editingMember && createMode === "manual" && !phone.trim()) {
+      fireAlert({
+        type: "warning",
+        title: "তথ্য অসম্পূর্ণ",
+        message: "ম্যানুয়াল অ্যাডে মোবাইল নম্বর আবশ্যক।",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const payload = {
+      const basePayload = {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
@@ -230,11 +270,10 @@ export default function AdminTeamPage() {
       };
 
       if (editingMember) {
-        // Edit existing member
         const res = await fetch(`/api/admin/team/${editingMember.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(basePayload),
         });
 
         const data = await res.json();
@@ -252,15 +291,55 @@ export default function AdminTeamPage() {
         fireAlert({
           type: "success",
           title: "আপডেট সফল!",
-          message: `সদস্য "${name}"-এর তথ্য সফলভাবে সুপাবেস ডাটাবেজে আপডেট করা হয়েছে।`,
+          message: `সদস্য "${name}"-এর তথ্য সফলভাবে আপডেট করা হয়েছে।`,
+        });
+        loadData();
+      } else if (createMode === "invite") {
+        const res = await fetch("/api/admin/team/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: basePayload.name,
+            email: basePayload.email,
+            phone: basePayload.phone || undefined,
+            designation: basePayload.designation,
+            role: basePayload.role,
+            permissions: basePayload.permissions,
+            notes: basePayload.notes,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          fireAlert({
+            type: "error",
+            title: "ইনভাইট ব্যর্থ",
+            message: data.error || "ইনভাইটেশন পাঠানো যায়নি।",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        setIsModalOpen(false);
+        const fromHint = data.fromEmail ? ` (${data.fromEmail})` : "";
+        const linkHint =
+          data.emailSent === false && data.inviteUrl
+            ? `\n\nম্যানুয়াল লিংক: ${data.inviteUrl}`
+            : "";
+        fireAlert({
+          type: data.emailSent === false ? "warning" : "success",
+          title: data.emailSent === false ? "সদস্য যোগ হয়েছে, ইমেইল ব্যর্থ" : "ইনভাইটেশন পাঠানো হয়েছে!",
+          message:
+            (data.message ||
+              `"${name}"-এর মেইলে অ্যাডমিন রিকোয়েস্ট পাঠানো হয়েছে${fromHint}। তিনি লিংক থেকে পাসওয়ার্ড সেট করে লগইন করতে পারবেন।`) +
+            linkHint,
         });
         loadData();
       } else {
-        // Create new member
         const res = await fetch("/api/admin/team", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(basePayload),
         });
 
         const data = await res.json();
@@ -573,6 +652,7 @@ export default function AdminTeamPage() {
             >
               <option value="ALL">সকল স্ট্যাটাস</option>
               <option value="Active">সক্রিয়</option>
+              <option value="Invited">ইনভাইট পেন্ডিং</option>
               <option value="Inactive">নিষ্ক্রিয়</option>
             </select>
           </div>
@@ -691,18 +771,24 @@ export default function AdminTeamPage() {
                   {/* Status & Last Login */}
                   <td className="py-4 px-5 text-xs">
                     <div className="space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(member)}
-                        title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
-                        className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-all hover:scale-105 active:scale-95 ${
-                          member.status === "Active"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                            : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-                        }`}
-                      >
-                        ● {member.status === "Active" ? "সক্রিয়" : "নিষ্ক্রিয়"}
-                      </button>
+                      {member.status === "Invited" ? (
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          ● ইনভাইট পেন্ডিং
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStatus(member)}
+                          title="স্ট্যাটাস পরিবর্তন করতে ক্লিক করুন"
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition-all hover:scale-105 active:scale-95 ${
+                            member.status === "Active"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                              : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                          }`}
+                        >
+                          ● {member.status === "Active" ? "সক্রিয়" : "নিষ্ক্রিয়"}
+                        </button>
+                      )}
                       <div className="text-[11px] text-stone-400 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         <span>{member.lastLogin}</span>
@@ -713,6 +799,16 @@ export default function AdminTeamPage() {
                   {/* Actions */}
                   <td className="py-4 px-6 text-center">
                     <div className="flex items-center justify-center gap-1.5">
+                      {(member.status === "Invited" || member.invitePending) && (
+                        <button
+                          type="button"
+                          onClick={() => handleResendInvite(member)}
+                          title="ইনভাইট পুনরায় পাঠান"
+                          className="p-2 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-xl transition-colors"
+                        >
+                          <SendHorizonal className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleOpenEditModal(member)}
@@ -785,9 +881,21 @@ export default function AdminTeamPage() {
 
               <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-100">
                 <span className="text-stone-400 text-[11px]">
-                  অনুমতি: {toBnDigits(member.permissions.length)} টি মডিউল
+                  {member.status === "Invited"
+                    ? "ইনভাইট পেন্ডিং"
+                    : `অনুমতি: ${toBnDigits(member.permissions.length)} টি মডিউল`}
                 </span>
                 <div className="flex items-center gap-2">
+                  {(member.status === "Invited" || member.invitePending) && (
+                    <button
+                      type="button"
+                      onClick={() => handleResendInvite(member)}
+                      className="p-2 border border-amber-200 hover:bg-amber-50 text-amber-700 rounded-xl"
+                      title="ইনভাইট পুনরায় পাঠান"
+                    >
+                      <SendHorizonal className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleOpenEditModal(member)}
@@ -811,211 +919,270 @@ export default function AdminTeamPage() {
 
       {/* ── 6. Create / Edit Member Modal ───────────────────────────────── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-stone-200 my-8 space-y-6">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-[#C48A4E] flex items-center justify-center">
-                  <UserPlus className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl sm:rounded-3xl max-w-xl w-full max-h-[92vh] shadow-2xl border border-stone-200 flex flex-col overflow-hidden">
+            {/* Sticky header */}
+            <div className="shrink-0 flex items-center justify-between gap-3 border-b border-stone-100 px-4 sm:px-5 py-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 text-[#C48A4E] flex items-center justify-center shrink-0">
+                  <UserPlus className="w-4.5 h-4.5" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-stone-900 text-lg">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-stone-900 text-sm sm:text-base truncate">
                     {editingMember ? "টিম সদস্য তথ্য সম্পাদনা" : "নতুন টিম সদস্য ও রোল নিয়োগ"}
                   </h3>
-                  <p className="text-xs text-stone-500">
-                    ভূমিকা নির্ধারণ করুন এবং নিরাপত্তা এক্সেস পারমিশন প্রদান করুন
+                  <p className="text-[11px] text-stone-500 truncate">
+                    {editingMember
+                      ? "ভূমিকা ও পারমিশন আপডেট করুন"
+                      : createMode === "invite"
+                        ? "নাম, ইমেইল ও রোল দিয়ে ইনভাইট পাঠান"
+                        : "ম্যানুয়ালি অ্যাকাউন্ট তৈরি করুন"}
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4.5 h-4.5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Row 1: Name & Designation */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    পূর্ণ নাম (Full Name) *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="সদস্যের নাম..."
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
-                  />
+            <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-3.5 space-y-3.5">
+                {!editingMember && (
+                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-stone-100 border border-stone-200">
+                    <button
+                      type="button"
+                      onClick={() => setCreateMode("invite")}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
+                        createMode === "invite"
+                          ? "bg-white text-[#351C1B] shadow-sm ring-1 ring-[#C48A4E]/40"
+                          : "text-stone-500 hover:text-stone-700"
+                      }`}
+                    >
+                      <SendHorizonal className="w-3.5 h-3.5 text-[#C48A4E]" />
+                      ইমেইল ইনভাইট
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreateMode("manual")}
+                      className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all ${
+                        createMode === "manual"
+                          ? "bg-white text-[#351C1B] shadow-sm ring-1 ring-[#C48A4E]/40"
+                          : "text-stone-500 hover:text-stone-700"
+                      }`}
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-stone-500" />
+                      ম্যানুয়াল অ্যাড
+                    </button>
+                  </div>
+                )}
+
+                {!editingMember && createMode === "invite" && (
+                  <div className="flex items-start gap-2 rounded-xl bg-amber-50/80 border border-amber-200/80 px-3 py-2 text-[11px] text-amber-950 leading-snug">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-700" />
+                    <p>
+                      পাসওয়ার্ড লাগবে না। <strong>info@doibilash.com</strong> থেকে ইনভাইট লিংক যাবে —
+                      তিনি পাসওয়ার্ড সেট করে লগইন করবেন।
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      পূর্ণ নাম *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="সদস্যের নাম..."
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      পদবি
+                    </label>
+                    <input
+                      type="text"
+                      value={designation}
+                      onChange={(e) => setDesignation(e.target.value)}
+                      placeholder="যেমন: সাপোর্ট স্পেশালিস্ট"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      অফিসিয়াল ইমেইল *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="staff@doibilash.com"
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      মোবাইল
+                      {!editingMember && createMode === "invite"
+                        ? " (ঐচ্ছিক)"
+                        : createMode === "manual" || editingMember
+                          ? " *"
+                          : ""}
+                    </label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="01712-XXXXXX"
+                      required={Boolean(editingMember) || createMode === "manual"}
+                      className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    পদবি (Designation)
+                  <label className="block text-[11px] font-bold text-stone-700 mb-1.5">
+                    রোল নির্বাচন *
                   </label>
-                  <input
-                    type="text"
-                    value={designation}
-                    onChange={(e) => setDesignation(e.target.value)}
-                    placeholder="যেমন: কাস্টমার সাপোর্ট স্পেশালিস্ট"
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    অফিসিয়াল ইমেইল (Login Email) *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@doibilash.com"
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    মোবাইল নম্বর (Phone)
-                  </label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="01712-XXXXXX"
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-[#C48A4E]/40"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Role Selector Cards */}
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-2">
-                  দায়িত্ব / রোল নির্বাচন করুন (Role Selection) *
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {(["Super Admin", "Manager", "Moderator", "Staff"] as TeamRole[]).map((r) => {
-                    const isSelected = role === r;
-                    const meta = ROLE_META[r];
-                    return (
-                      <div
-                        key={r}
-                        onClick={() => handleRoleChange(r)}
-                        className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                          isSelected
-                            ? "bg-amber-50/70 border-[#C48A4E] shadow-xs ring-1 ring-[#C48A4E]"
-                            : "bg-stone-50/50 border-stone-200 hover:border-stone-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-stone-900 text-xs sm:text-sm flex items-center gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(["Super Admin", "Manager", "Moderator", "Staff"] as TeamRole[]).map((r) => {
+                      const isSelected = role === r;
+                      const meta = ROLE_META[r];
+                      return (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => handleRoleChange(r)}
+                          className={`px-2.5 py-2 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "bg-amber-50/70 border-[#C48A4E] ring-1 ring-[#C48A4E]"
+                              : "bg-stone-50/50 border-stone-200 hover:border-stone-300"
+                          }`}
+                        >
+                          <span className="font-bold text-stone-900 text-[11px] sm:text-xs flex items-center gap-1">
                             {r === "Super Admin" && (
-                              <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-400" />
+                              <Crown className="w-3 h-3 text-amber-600 fill-amber-400 shrink-0" />
                             )}
-                            {meta.labelBn.split(" (")[0]}
+                            <span className="truncate">{meta.labelBn.split(" (")[0]}</span>
+                            {isSelected && (
+                              <Check className="w-3 h-3 text-[#C48A4E] ml-auto shrink-0" />
+                            )}
                           </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] font-bold text-stone-700">
+                      পারমিশনসমূহ
+                    </label>
+                    <span className="text-[10px] text-[#C48A4E] font-bold">
+                      {toBnDigits(permissions.length)} / {toBnDigits(ALL_PERMISSIONS.length)} সক্রিয়
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 bg-stone-50 p-2 rounded-xl border border-stone-200/80 max-h-28 overflow-y-auto">
+                    {ALL_PERMISSIONS.map((perm) => {
+                      const isChecked = permissions.includes(perm.id);
+                      return (
+                        <label
+                          key={perm.id}
+                          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] cursor-pointer transition-colors ${
+                            isChecked
+                              ? "bg-white shadow-2xs font-semibold text-stone-900"
+                              : "text-stone-600 hover:bg-white/60"
+                          }`}
+                        >
                           <input
-                            type="radio"
-                            name="role"
-                            checked={isSelected}
-                            onChange={() => handleRoleChange(r)}
-                            className="accent-[#C48A4E]"
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleTogglePermission(perm.id)}
+                            className="accent-[#C48A4E] shrink-0"
                           />
-                        </div>
-                        <p className="text-[11px] text-stone-500 mt-1">{meta.subtitle}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Row 3: Granular Permissions Checklist */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold text-stone-700">
-                    অনুমোদিত পারমিশনসমূহ (Permissions Checklist)
-                  </label>
-                  <span className="text-[11px] text-[#C48A4E] font-bold">
-                    {toBnDigits(permissions.length)} / {toBnDigits(ALL_PERMISSIONS.length)} টি সক্রিয়
-                  </span>
+                          <span className="leading-tight truncate">{perm.labelBn}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-stone-50 p-3.5 rounded-2xl border border-stone-200/80 max-h-48 overflow-y-auto">
-                  {ALL_PERMISSIONS.map((perm) => {
-                    const isChecked = permissions.includes(perm.id);
-                    return (
-                      <label
-                        key={perm.id}
-                        className={`flex items-start gap-2 p-2 rounded-xl text-xs cursor-pointer transition-colors ${
-                          isChecked ? "bg-white shadow-2xs font-semibold text-stone-900" : "text-stone-600 hover:bg-white/60"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleTogglePermission(perm.id)}
-                          className="mt-0.5 accent-[#C48A4E]"
-                        />
-                        <span className="leading-tight">{perm.labelBn}</span>
+                {(editingMember || createMode === "manual") && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        {editingMember ? "নতুন পাসওয়ার্ড (ঐচ্ছিক)" : "লগইন পাসওয়ার্ড *"}
                       </label>
-                    );
-                  })}
-                </div>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        required={!editingMember && createMode === "manual"}
+                        minLength={!editingMember && createMode === "manual" ? 6 : undefined}
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                        অ্যাকাউন্ট স্ট্যাটাস
+                      </label>
+                      <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as MemberStatus)}
+                        aria-label="অ্যাকাউন্ট স্ট্যাটাস"
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-xs text-stone-900 focus:outline-hidden"
+                      >
+                        <option value="Active">সক্রিয় (Active)</option>
+                        <option value="Inactive">সাময়িক স্থগিত</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Row 4: Password & Status */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    {editingMember ? "নতুন পাসওয়ার্ড (ঐচ্ছিক)" : "লগইন পাসওয়ার্ড *"}
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                    অ্যাকাউন্ট স্ট্যাটাস
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as MemberStatus)}
-                    aria-label="অ্যাকাউন্ট স্ট্যাটাস"
-                    className="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs sm:text-sm text-stone-900 focus:outline-hidden"
-                  >
-                    <option value="Active">সক্রিয় (Active)</option>
-                    <option value="Inactive">সাময়িক স্থগিত (Suspended)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100">
+              {/* Sticky footer actions — always visible */}
+              <div className="shrink-0 flex items-center justify-end gap-2 border-t border-stone-100 bg-white px-4 sm:px-5 py-3">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2.5 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs font-bold"
+                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 hover:bg-stone-50 text-xs font-bold"
                 >
-                  বাতিল করুন
+                  বাতিল
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] text-amber-50 font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-60 flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] text-amber-50 font-bold text-xs shadow-md hover:shadow-lg transition-all disabled:opacity-60 flex items-center gap-2 cursor-pointer"
                 >
-                  {isSubmitting && <Clock className="w-4 h-4 animate-spin" />}
-                  <span>{isSubmitting ? "সংরক্ষণ হচ্ছে..." : editingMember ? "তথ্য আপডেট করুন" : "সদস্য সংরক্ষণ করুন"}</span>
+                  {isSubmitting && <Clock className="w-3.5 h-3.5 animate-spin" />}
+                  <span>
+                    {isSubmitting
+                      ? createMode === "invite" && !editingMember
+                        ? "পাঠানো হচ্ছে..."
+                        : "সংরক্ষণ..."
+                      : editingMember
+                        ? "আপডেট করুন"
+                        : createMode === "invite"
+                          ? "ইনভাইটেশন পাঠান"
+                          : "সংরক্ষণ করুন"}
+                  </span>
                 </button>
               </div>
             </form>

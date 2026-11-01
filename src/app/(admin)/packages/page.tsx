@@ -28,9 +28,6 @@ import {
   PackageOccasion,
   PackageStatus,
   OCCASION_META,
-  getStoredPackages,
-  deletePackage,
-  savePackage,
 } from "@/lib/packageStorage";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -61,18 +58,13 @@ export default function AdminPackagesPage() {
         const json = await res.json();
         if (json.ok && Array.isArray(json.packages)) {
           setPackages(json.packages);
-          if (typeof window !== "undefined") {
-            try {
-              localStorage.setItem("doibilash_gift_packages_v1", JSON.stringify(json.packages));
-            } catch {}
-          }
           return;
         }
       }
     } catch (err) {
       console.error("Failed to load packages from API:", err);
     }
-    setPackages(getStoredPackages());
+    setPackages([]);
   };
 
   useEffect(() => {

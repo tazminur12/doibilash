@@ -43,7 +43,10 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/profile";
+  const nextPath = searchParams.get("next") || searchParams.get("redirect") || "";
+  const redirectPath = nextPath || "/profile";
+  const justInvited = searchParams.get("invited") === "1";
+  const needsAdmin = searchParams.get("reason") === "admin";
 
   const [phoneOrEmail, setPhoneOrEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -51,11 +54,19 @@ function LoginContent() {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState(
+    justInvited
+      ? "পাসওয়ার্ড সেট হয়েছে! এখন ইমেইল ও পাসওয়ার্ড দিয়ে অ্যাডমিন প্যানেলে লগইন করুন।"
+      : needsAdmin
+        ? "অ্যাডমিন প্যানেল ব্যবহার করতে টিম অ্যাকাউন্ট দিয়ে লগইন করুন।"
+        : ""
+  );
 
   const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotPhone, setForgotPhone] = useState("");
-  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,8 +87,28 @@ function LoginContent() {
       const res = await loginUser(phoneOrEmail, password);
       if (res.ok) {
         setSuccessMsg(`স্বাগতম, ${res.user.name}! লগইন সফল হয়েছে।`);
+        const wantsAdmin =
+          needsAdmin ||
+          redirectPath.startsWith("/admin") ||
+          redirectPath === "/orders" ||
+          redirectPath.startsWith("/orders/");
+        let dest =
+          res.redirectTo ||
+          (res.user.role === "ADMIN" ? "/admin" : redirectPath);
+
+        // Customer session cannot open admin — send them home/profile
+        if (wantsAdmin && res.user.role !== "ADMIN") {
+          setError("এই অ্যাকাউন্ট দিয়ে অ্যাডমিন প্যানেলে প্রবেশ করা যাবে না।");
+          setIsLoading(false);
+          setSuccessMsg("");
+          return;
+        }
+        if (res.user.role === "ADMIN" && nextPath && nextPath.startsWith("/")) {
+          dest = nextPath;
+        }
+
         setTimeout(() => {
-          router.push(redirectPath);
+          router.push(dest);
         }, 800);
       } else {
         setError(res.error);
@@ -89,21 +120,37 @@ function LoginContent() {
     }
   };
 
-  const handleDemoLogin = () => {
-    setPhoneOrEmail("01712345678");
-    setPassword("demo12345");
-  };
-
-  const handleForgotSubmit = (e: React.FormEvent) => {
+  const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!forgotPhone.trim()) return;
-    setForgotSent(true);
-    setTimeout(() => {
-      setShowForgotModal(false);
-      setForgotSent(false);
-      setForgotPhone("");
-      alert("আপনার নম্বরে পাসওয়ার্ড রিসেট ওটিপি (OTP) পাঠানো হয়েছে।");
-    }, 1500);
+    const email = forgotEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setForgotError("সঠিক ইমেইল ঠিকানা দিন।");
+      return;
+    }
+    setForgotError("");
+    setForgotSuccess("");
+    setForgotLoading(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setForgotError(data.error || "ইমেইল পাঠানো যায়নি। আবার চেষ্টা করুন।");
+        setForgotLoading(false);
+        return;
+      }
+      setForgotSuccess(
+        data.message ||
+          "রিসেট লিংক ইমেইলে পাঠানো হয়েছে। ইনবক্স ও স্প্যাম ফোল্ডার চেক করুন।"
+      );
+      setForgotLoading(false);
+    } catch {
+      setForgotError("সার্ভারে সংযোগ করা যায়নি।");
+      setForgotLoading(false);
+    }
   };
 
   return (
@@ -205,8 +252,8 @@ function LoginContent() {
           {/* ── RIGHT AUTH FORM CONTAINER ─────────────────────────────── */}
           <div className="lg:col-span-7 p-6 sm:p-10 lg:p-12 flex flex-col justify-between bg-white relative">
             
-            {/* Top Back Nav & Quick Demo */}
-            <div className="flex items-center justify-between mb-6">
+            {/* Top Back Nav */}
+            <div className="mb-6">
               <Link
                 href="/"
                 className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-[#A95E35] transition"
@@ -214,14 +261,6 @@ function LoginContent() {
                 <ChevronLeft className="w-4 h-4" />
                 <span>ওয়েবসাইটে ফিরে যান</span>
               </Link>
-
-              <button
-                type="button"
-                onClick={handleDemoLogin}
-                className="text-[11px] font-bold text-[#A95E35] bg-[#FAF3EA] hover:bg-[#F3E5D4] px-2.5 py-1 rounded-lg border border-[#C48A4E]/30 transition active:scale-95"
-              >
-                ⚡ কুইক ডেমো তথ্য বসান
-              </button>
             </div>
 
             {/* Form Header */}
@@ -378,13 +417,18 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* Forgot Password Modal */}
+      {/* Forgot Password Modal — email via Resend */}
       {showForgotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl border border-stone-200 relative">
             <button
               type="button"
-              onClick={() => setShowForgotModal(false)}
+              onClick={() => {
+                setShowForgotModal(false);
+                setForgotError("");
+                setForgotSuccess("");
+                setForgotEmail("");
+              }}
               className="absolute top-4 right-4 p-1.5 rounded-full text-stone-400 hover:bg-stone-100"
             >
               <X className="w-4 h-4" />
@@ -397,27 +441,54 @@ function LoginContent() {
             <div>
               <h3 className="text-base font-bold text-stone-900">পাসওয়ার্ড পুনরুদ্ধার</h3>
               <p className="text-xs text-stone-500 mt-1">
-                আপনার নিবন্ধিত মোবাইল নম্বর দিন। আমরা একটি ওটিপি (OTP) কোড পাঠিয়ে দেব।
+                আপনার নিবন্ধিত ইমেইল দিন। Resend দিয়ে রিসেট লিংক পাঠানো হবে (
+                <span className="font-sans">info@doibilash.com</span>)।
               </p>
             </div>
 
-            <form onSubmit={handleForgotSubmit} className="space-y-3 pt-2">
-              <input
-                type="text"
-                required
-                value={forgotPhone}
-                onChange={(e) => setForgotPhone(e.target.value)}
-                placeholder="017XXXXXXXX"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-center font-semibold focus:outline-none focus:ring-2 focus:ring-[#C48A4E]/30"
-              />
-              <button
-                type="submit"
-                disabled={forgotSent}
-                className="w-full py-2.5 rounded-xl bg-linear-to-r from-[#C48A4E] to-[#A95E35] text-white text-xs font-bold shadow-md hover:shadow-lg transition"
-              >
-                {forgotSent ? "কোড পাঠানো হচ্ছে..." : "রিসেট কোড পাঠান"}
-              </button>
-            </form>
+            {forgotSuccess ? (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-3 text-left space-y-2">
+                <p className="text-xs text-emerald-800 font-medium leading-relaxed">
+                  {forgotSuccess}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotSuccess("");
+                    setForgotEmail("");
+                  }}
+                  className="text-[11px] font-bold text-[#A95E35] hover:underline"
+                >
+                  ঠিক আছে
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-3 pt-2">
+                <input
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={(e) => {
+                    setForgotEmail(e.target.value);
+                    setForgotError("");
+                  }}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-sm text-center font-semibold font-sans focus:outline-none focus:ring-2 focus:ring-[#C48A4E]/30"
+                />
+                {forgotError && (
+                  <p className="text-[11px] text-red-600 text-left">{forgotError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full py-2.5 rounded-xl bg-linear-to-r from-[#C48A4E] to-[#A95E35] text-white text-xs font-bold shadow-md hover:shadow-lg transition disabled:opacity-60"
+                >
+                  {forgotLoading ? "ইমেইল পাঠানো হচ্ছে..." : "রিসেট লিংক পাঠান"}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

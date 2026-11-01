@@ -54,7 +54,7 @@ export async function GET(req: Request) {
         id: m.id,
         name: m.name,
         email: m.email,
-        phone: m.phone,
+        phone: m.phone || "",
         role: m.role,
         designation: m.designation,
         status: m.status,
@@ -66,15 +66,19 @@ export async function GET(req: Request) {
           month: "long",
           year: "numeric",
         }),
-        lastLogin: m.lastLogin
-          ? m.lastLogin.toLocaleDateString("bn-BD", {
-              day: "numeric",
-              month: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "এখন সক্রিয় (Just Now)",
+        lastLogin:
+          m.status === "Invited"
+            ? "ইনভাইট পেন্ডিং"
+            : m.lastLogin
+              ? m.lastLogin.toLocaleDateString("bn-BD", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "এখনো লগইন করেননি",
         notes: m.notes || "",
+        invitePending: m.status === "Invited" || Boolean(m.inviteToken),
       };
     });
 

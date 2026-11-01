@@ -6,6 +6,8 @@
   --color-doibrand-gold: #C48A4E;
   --color-doibrand-light: #FAF8F5;
   --color-doibrand-accent: #A95E35;
+  /* Wider site shell on large monitors (default 7xl = 80rem / 1280px) */
+  --container-7xl: 100rem; /* 1600px — less empty side gutters */
   --font-bengali: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
   --font-hind: 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;
   --font-sans: 'Anek Bangla', var(--font-anek-bangla), 'Hind Siliguri', var(--font-hind-siliguri), sans-serif;

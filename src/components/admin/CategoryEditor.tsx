@@ -36,9 +36,6 @@ import {
   ALL_AVAILABLE_PRODUCTS,
   AvailableProduct,
   StoredCategory,
-  getStoredCategories,
-  saveCategory,
-  getCategoryByIdOrSlug,
 } from "@/lib/categoryStorage";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -141,7 +138,7 @@ export default function CategoryEditor() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [sweetAlert.isOpen]);
 
-  // Load existing data if editing (Live Database with localStorage Fallback)
+  // Load existing data if editing (Live Database)
   useEffect(() => {
     if (!editId) return;
 
@@ -172,27 +169,7 @@ export default function CategoryEditor() {
           }
         }
       } catch (err) {
-        console.warn("Failed to fetch category from API, falling back:", err);
-      }
-
-      // Fallback to local storage if API fails
-      const existing = getCategoryByIdOrSlug(editId);
-      if (existing && isMounted) {
-        setNameBn(existing.nameBn);
-        setNameEn(existing.name);
-        setSlug(existing.slug);
-        setSubtitle(existing.subtitle || "");
-        setDescription(existing.description || "");
-        setImage(existing.image || PRESET_IMAGES[0].url);
-        setSelectedProductSlugs(existing.productSlugs || []);
-        setHighlights(existing.highlights && existing.highlights.length > 0 ? existing.highlights : []);
-        setTags(existing.tags && existing.tags.length > 0 ? existing.tags : []);
-        setIsFeatured(Boolean(existing.isFeatured));
-        setStatus(existing.status || "active");
-        if (existing.totalProducts !== existing.productSlugs?.length) {
-          setIsManualCount(true);
-          setManualCountOverride(String(existing.totalProducts));
-        }
+        console.warn("Failed to fetch category from API:", err);
       }
     };
 
@@ -438,26 +415,6 @@ export default function CategoryEditor() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "ক্যাটাগরি ডেটাবেসে সংরক্ষণ ব্যর্থ হয়েছে");
       }
-
-      // Also update local storage cache for instant offline sync
-      try {
-        saveCategory({
-          id: data.category?.id || editId || `cat-${Date.now()}`,
-          slug: payload.slug,
-          name: payload.name,
-          nameBn: payload.nameBn,
-          subtitle: payload.subtitle,
-          description: payload.description,
-          image: payload.image,
-          totalProducts: payload.totalProducts,
-          highlights: payload.highlights,
-          tags: payload.tags,
-          productSlugs: payload.productSlugs,
-          isFeatured: payload.isFeatured,
-          status: payload.status,
-          createdAt: new Date().toISOString().split("T")[0],
-        });
-      } catch {}
 
       setSweetAlert({
         isOpen: true,

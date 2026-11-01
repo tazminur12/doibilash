@@ -20,11 +20,7 @@ import {
   AlertCircle,
   X,
 } from "lucide-react";
-import {
-  StoredCategory,
-  getStoredCategories,
-  deleteCategory,
-} from "@/lib/categoryStorage";
+import type { StoredCategory } from "@/lib/categoryStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminCategoriesPage() {
@@ -53,18 +49,13 @@ export default function AdminCategoriesPage() {
         const json = await res.json();
         if (json.ok && Array.isArray(json.categories)) {
           setCategories(json.categories);
-          if (typeof window !== "undefined") {
-            try {
-              localStorage.setItem("doibilash_admin_categories_v2", JSON.stringify(json.categories));
-            } catch {}
-          }
           return;
         }
       }
     } catch (err) {
       console.error("Failed to load categories from API:", err);
     }
-    setCategories(getStoredCategories());
+    setCategories([]);
   };
 
   useEffect(() => {

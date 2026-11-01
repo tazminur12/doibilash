@@ -10,20 +10,23 @@ import {
   User,
   ChevronDown,
   Plus,
-  ExternalLink,
   ShoppingBag,
   Package,
   Users,
   Settings,
-  Sparkles,
   LogOut,
-  CheckCircle2,
   AlertTriangle,
   Clock,
-  Command,
-  X,
   Store,
 } from "lucide-react";
+import {
+  AUTH_CHANGED_EVENT,
+  clearCurrentUser,
+  getCurrentUser,
+  syncCurrentUserWithServer,
+  type UserSession,
+} from "@/lib/authStorage";
+import { ROLE_META, type TeamRole } from "@/lib/teamStorage";
 
 interface AdminTopbarProps {
   onToggleMobileSidebar?: () => void;
@@ -44,8 +47,16 @@ const ROUTE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/admin/corporate": { title: "কর্পোরেট ও বাল্ক অর্ডার", subtitle: "প্রাতিষ্ঠানিক বিটুবি কোটেশন ও বাল্ক সাপ্লাই চেইন" },
   "/admin/corporate/new": { title: "নতুন কর্পোরেট কোটেশন", subtitle: "কোম্পানি ও ইভেন্টের জন্য বাল্ক প্রাইসিং ও এগ্রিমেন্ট" },
   "/admin/team": { title: "টিম মেম্বার ও রোলস", subtitle: "সুপার অ্যাডমিন, ম্যানেজার, মডারেটর ও স্টাফ ম্যানেজমেন্ট" },
+  "/admin/profile": { title: "আমার প্রোফাইল", subtitle: "অ্যাকাউন্ট তথ্য, রোল ও পাসওয়ার্ড ব্যবস্থাপনা" },
   "/admin/settings": { title: "স্টোর সেটিংস ও কনফিগারেশন", subtitle: "পেমেন্ট গেটওয়ে, ডেলিভারি ও ব্র্যান্ড সেটিংস" },
 };
+
+function teamRoleLabelBn(role?: string): string {
+  if (!role) return "অ্যাডমিন";
+  const meta = ROLE_META[role as TeamRole];
+  if (meta) return meta.labelBn.split(" (")[0];
+  return role;
+}
 
 export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps) {
   const pathname = usePathname();
@@ -55,10 +66,25 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [adminUser, setAdminUser] = useState<UserSession | null>(null);
 
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAdminUser(getCurrentUser());
+    syncCurrentUserWithServer().then((u) => {
+      if (u?.role === "ADMIN") setAdminUser(u);
+      else if (u) setAdminUser(u);
+    });
+    const onAuth = (e: Event) => {
+      const detail = (e as CustomEvent).detail as UserSession | null;
+      setAdminUser(detail);
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuth as EventListener);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuth as EventListener);
+  }, []);
 
   // Close popovers on click outside
   useEffect(() => {
@@ -98,6 +124,20 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
       : pathname.startsWith("/admin/customers/")
       ? { title: "গ্রাহক প্রোফাইল", subtitle: "গ্রাহকের অর্ডার হিস্ট্রি ও যোগাযোগ" }
       : { title: "এডমিন কন্ট্রোল প্যানেল", subtitle: "দই বিলাস ব্যবস্থাপনা পোর্টাল" });
+
+  const displayName = adminUser?.name || "দই বিলাস অ্যাডমিন";
+  const displayEmail = adminUser?.email || "admin@doibilash.com";
+  const displayRole = teamRoleLabelBn(adminUser?.teamRole);
+  const displayDesignation = adminUser?.designation || "Executive";
+  const displayInitials =
+    adminUser?.avatarInitials ||
+    (adminUser?.name
+      ? adminUser.name
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((p) => p[0] || "")
+          .join("")
+      : "দবি");
 
   const QUICK_SEARCH_RESULTS = [
     { type: "order", label: "অর্ডার #DB-1035 (তানভীর আহমেদ)", href: "/admin/orders/DB-1035" },
@@ -340,15 +380,15 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
             className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-stone-50 transition-colors cursor-pointer group"
           >
             <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-linear-to-br from-[#351C1B] via-[#4A2624] to-[#C48A4E] text-amber-100 flex items-center justify-center font-bold text-xs sm:text-sm shadow-xs ring-2 ring-[#C48A4E]/30 group-hover:ring-[#C48A4E] transition-all">
-              দবি
+              {displayInitials}
             </div>
 
-            <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-extrabold text-[#351C1B] leading-tight">
-                সুপার অ্যাডমিন
+            <div className="hidden lg:flex flex-col text-left min-w-0">
+              <span className="text-xs font-extrabold text-[#351C1B] leading-tight truncate max-w-[140px]">
+                {displayRole}
               </span>
-              <span className="text-[10px] text-stone-400 font-sans leading-tight">
-                Executive Manager
+              <span className="text-[10px] text-stone-400 leading-tight truncate max-w-[140px]">
+                {displayName}
               </span>
             </div>
 
@@ -357,11 +397,24 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
 
           {/* Profile Menu Popover */}
           {showProfileMenu && (
-            <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 z-50 text-xs animate-in fade-in duration-200 space-y-1">
+            <div className="absolute right-0 mt-3 w-60 bg-white rounded-2xl shadow-2xl border border-stone-200 p-2 z-50 text-xs animate-in fade-in duration-200 space-y-1">
               <div className="px-3 py-2 border-b border-stone-100 mb-1">
-                <div className="font-extrabold text-stone-900 text-sm">দই বিলাস অ্যাডমিন</div>
-                <div className="text-[11px] text-stone-400">admin@doibilash.com</div>
+                <div className="font-extrabold text-stone-900 text-sm truncate">{displayName}</div>
+                <div className="text-[11px] text-stone-400 truncate">{displayEmail}</div>
+                <div className="text-[10px] text-[#C48A4E] font-bold mt-0.5">
+                  {displayRole}
+                  {displayDesignation ? ` · ${displayDesignation}` : ""}
+                </div>
               </div>
+
+              <Link
+                href="/admin/profile"
+                onClick={() => setShowProfileMenu(false)}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-amber-50/60 text-stone-700 hover:text-[#351C1B] transition-colors font-semibold"
+              >
+                <User className="w-4 h-4 text-[#C48A4E]" />
+                <span>আমার প্রোফাইল</span>
+              </Link>
 
               <Link
                 href="/admin/team"
@@ -382,15 +435,6 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
               </Link>
 
               <Link
-                href="/admin/orders"
-                onClick={() => setShowProfileMenu(false)}
-                className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-stone-50 text-stone-700 hover:text-[#351C1B] transition-colors"
-              >
-                <ShoppingBag className="w-4 h-4 text-stone-400" />
-                <span>সকল অর্ডার তালিকা</span>
-              </Link>
-
-              <Link
                 href="/"
                 target="_blank"
                 onClick={() => setShowProfileMenu(false)}
@@ -406,7 +450,8 @@ export default function AdminTopbar({ onToggleMobileSidebar }: AdminTopbarProps)
                   onClick={() => {
                     setShowProfileMenu(false);
                     if (confirm("আপনি কি নিশ্চিত যে অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?")) {
-                      window.location.href = "/";
+                      clearCurrentUser();
+                      router.push("/login");
                     }
                   }}
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 text-red-600 transition-colors text-left font-semibold"

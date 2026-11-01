@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Home, Store, ShoppingBag, User } from "lucide-react";
+import { Home, Store, ShoppingBag, User, LayoutDashboard } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import {
   getCurrentUser,
@@ -109,36 +109,46 @@ export default function MobileBottomNav() {
           </span>
         </button>
 
-        {/* 4. Profile / Login */}
-        <Link
-          href={currentUser ? "/profile" : "/login"}
-          className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-colors ${
-            isProfileActive
-              ? "text-doibrand-gold font-semibold"
-              : "text-gray-400 hover:text-doibrand-dark"
-          }`}
-        >
-          {currentUser?.avatarUrl ? (
-            <div className="relative w-5 h-5 rounded-full overflow-hidden ring-1 ring-doibrand-gold shrink-0">
-              <Image
-                src={currentUser.avatarUrl}
-                alt={currentUser.name}
-                fill
-                className="object-cover"
-                unoptimized
-              />
-            </div>
-          ) : currentUser ? (
-            <div className="w-5 h-5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-black text-[10px] flex items-center justify-center shrink-0">
-              {Array.from(currentUser.name)[0] || "U"}
-            </div>
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-          <span className="text-[10px] font-medium font-bengali">
-            {currentUser ? "প্রোফাইল" : "লগইন"}
-          </span>
-        </Link>
+        {/* 4. Admin (team) or Profile / Login */}
+        {currentUser?.role === "ADMIN" ? (
+          <Link
+            href="/admin"
+            className="flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-colors text-[#C48A4E] font-semibold"
+          >
+            <LayoutDashboard className="w-5 h-5" />
+            <span className="text-[10px] font-medium font-bengali">অ্যাডমিন</span>
+          </Link>
+        ) : (
+          <Link
+            href={currentUser ? "/profile" : "/login"}
+            className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-colors ${
+              isProfileActive
+                ? "text-doibrand-gold font-semibold"
+                : "text-gray-400 hover:text-doibrand-dark"
+            }`}
+          >
+            {currentUser?.avatarUrl ? (
+              <div className="relative w-5 h-5 rounded-full overflow-hidden ring-1 ring-doibrand-gold shrink-0">
+                <Image
+                  src={currentUser.avatarUrl}
+                  alt={currentUser.name}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+            ) : currentUser ? (
+              <div className="w-5 h-5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                {Array.from(currentUser.name)[0] || "U"}
+              </div>
+            ) : (
+              <User className="w-5 h-5" />
+            )}
+            <span className="text-[10px] font-medium font-bengali">
+              {currentUser ? "প্রোফাইল" : "লগইন"}
+            </span>
+          </Link>
+        )}
       </div>
     </nav>
   );

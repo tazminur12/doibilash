@@ -32,9 +32,6 @@ import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
-  getStoredOrders,
-  saveOrder,
-  getOrderById,
 } from "@/lib/orderStorage";
 import { ALL_AVAILABLE_PRODUCTS } from "@/lib/categoryStorage";
 import { toBnDigits } from "@/lib/bangla";
@@ -44,7 +41,7 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
   const searchParams = useSearchParams();
   const idFromParam = orderId || searchParams.get("id") || searchParams.get("edit");
 
-  // Customer Form State
+  // Customer Form State — empty (no demo fill)
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -54,24 +51,14 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
   const [notes, setNotes] = useState("");
 
   // Order Items State
-  const [items, setItems] = useState<OrderItem[]>([
-    {
-      id: "item-init",
-      productId: "bogra-special-doi",
-      title: "বগুড়ার স্পেশাল সরার মিষ্টি দই",
-      price: 500,
-      quantity: 1,
-      unit: "১ কেজি মাটির সরা",
-      image: "/Product/doi.jpg",
-    },
-  ]);
+  const [items, setItems] = useState<OrderItem[]>([]);
 
   // Financial & Payment State
   const [deliveryFee, setDeliveryFee] = useState<number>(60);
   const [discount, setDiscount] = useState<string>("0");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash on Delivery");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("Unpaid");
-  const [status, setStatus] = useState<OrderStatus>("Processing");
+  const [status, setStatus] = useState<OrderStatus>("Pending");
 
   // Product Picker Modal / Drawer State
   const [productSearch, setProductSearch] = useState("");
@@ -83,26 +70,41 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
   const [toastMessage, setToastMessage] = useState("");
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Load existing order if editing
+  const hydrateOrder = (existing: StoredOrder) => {
+    setCustomerName(existing.customerName);
+    setCustomerPhone(existing.customerPhone);
+    setCustomerEmail(existing.customerEmail || "");
+    setShippingAddress(existing.shippingAddress);
+    setDeliveryArea(existing.deliveryArea);
+    setDeliveryTimeSlot(existing.deliveryTimeSlot || "সকাল ১০টা - দুপুর ২টা");
+    setNotes(existing.notes || "");
+    setItems(existing.items || []);
+    setDeliveryFee(existing.deliveryFee);
+    setDiscount(String(existing.discount || 0));
+    setPaymentMethod(existing.paymentMethod);
+    setPaymentStatus(existing.paymentStatus);
+    setStatus(existing.status);
+  };
+
+  // Load existing order if editing (from API)
   useEffect(() => {
-    if (idFromParam) {
-      const existing = getOrderById(idFromParam);
-      if (existing) {
-        setCustomerName(existing.customerName);
-        setCustomerPhone(existing.customerPhone);
-        setCustomerEmail(existing.customerEmail || "");
-        setShippingAddress(existing.shippingAddress);
-        setDeliveryArea(existing.deliveryArea);
-        setDeliveryTimeSlot(existing.deliveryTimeSlot || "সকাল ১০টা - দুপুর ২টা");
-        setNotes(existing.notes || "");
-        setItems(existing.items || []);
-        setDeliveryFee(existing.deliveryFee);
-        setDiscount(String(existing.discount || 0));
-        setPaymentMethod(existing.paymentMethod);
-        setPaymentStatus(existing.paymentStatus);
-        setStatus(existing.status);
+    if (!idFromParam) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(idFromParam)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && data.order) {
+          hydrateOrder(data.order as StoredOrder);
+          return;
+        }
+      } catch {
+        /* order stays blank */
       }
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [idFromParam]);
 
   // Adjust delivery fee automatically when delivery area changes
@@ -163,8 +165,8 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
     setIsProductPickerOpen(false);
   };
 
-  // Save action
-  const handleSaveOrder = (e?: React.FormEvent) => {
+  // Save action → Supabase
+  const handleSaveOrder = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -185,8 +187,8 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
     const orderIdToSave = idFromParam || `DB-${Math.floor(10000 + Math.random() * 90000)}`;
 
     const orderToSave: StoredOrder = {
-      id: orderIdToSave,
-      invoiceNo: `INV-2026-${orderIdToSave.replace("DB-", "")}`,
+      id: orderIdToSave.replace(/^#/, ""),
+      invoiceNo: `INV-${orderIdToSave.replace(/^#?DB-/, "")}`,
       createdAt: new Date().toISOString().split("T")[0],
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -205,15 +207,39 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
       status: status,
     };
 
-    saveOrder(orderToSave);
+    try {
+      const url = idFromParam
+        ? `/api/admin/orders/${encodeURIComponent(idFromParam)}`
+        : "/api/admin/orders";
+      const method = idFromParam ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderToSave),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "অর্ডার সংরক্ষণ ব্যর্থ");
+      }
 
-    setToastMessage(idFromParam ? "অর্ডারটি সফলভাবে আপডেট হয়েছে!" : "ম্যানুয়াল অর্ডার সফলভাবে তৈরি হয়েছে!");
-    setShowToast(true);
+      const saved = (data.order as StoredOrder) || orderToSave;
 
-    setTimeout(() => {
+      setToastMessage(
+        data.message ||
+          (idFromParam
+            ? "অর্ডারটি সফলভাবে আপডেট হয়েছে!"
+            : "ম্যানুয়াল অর্ডার সফলভাবে তৈরি হয়েছে!")
+      );
+      setShowToast(true);
+
+      setTimeout(() => {
+        setIsSaving(false);
+        router.push(`/admin/orders/${saved.id}`);
+      }, 1000);
+    } catch (err: unknown) {
       setIsSaving(false);
-      router.push(`/admin/orders/${orderIdToSave}`);
-    }, 1200);
+      alert(err instanceof Error ? err.message : "সার্ভারে সংযোগ করা যায়নি");
+    }
   };
 
   // Filtered catalogue products

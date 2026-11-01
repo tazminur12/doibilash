@@ -93,8 +93,6 @@ export const PROMO_CODES: PromoCodeItem[] = [
   },
 ];
 
-import { getStoredPromos } from "@/lib/offerStorage";
-
 export const isPromoExpired = (promo: PromoCodeItem, now: number) =>
   promo.expiresAt ? new Date(promo.expiresAt).getTime() < now : false;
 
@@ -110,13 +108,13 @@ export type PromoResult =
 
 export function evaluatePromo(
   rawCode: string,
-  ctx: { items: CartLine[]; subtotal: number; insideDhaka: boolean; now: number }
+  ctx: { items: CartLine[]; subtotal: number; insideDhaka: boolean; now: number },
+  promos: PromoCodeItem[] = PROMO_CODES
 ): PromoResult {
   const code = rawCode.trim().toUpperCase();
   if (!code) return { ok: false, error: "দয়া করে একটি কুপন কোড লিখুন।" };
 
-  const allPromos = typeof window !== "undefined" ? getStoredPromos() : PROMO_CODES;
-  const promo = allPromos.find((p) => p.code.toUpperCase() === code);
+  const promo = promos.find((p) => p.code.toUpperCase() === code);
   if (!promo) return { ok: false, error: "কুপন কোডটি সঠিক নয়।" };
   if ("isActive" in promo && !promo.isActive) {
     return { ok: false, error: "এই কুপন কোডটি বর্তমানে নিষ্ক্রিয় রয়েছে।" };

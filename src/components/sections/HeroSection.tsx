@@ -4,28 +4,14 @@ import React, { useState, useEffect, useCallback, useSyncExternalStore } from "r
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { HeroBannerDTO } from "@/lib/heroBannerService";
 
 interface Slide {
-  id: number;
+  id: string;
   imageUrl: string;
   altText: string;
   link: string;
 }
-
-const slides: Slide[] = [
-  {
-    id: 1,
-    imageUrl: "/Hero/Hero1.png",
-    altText: "বগুড়ার খাঁটি দই - দই বিলাস",
-    link: "/shop",
-  },
-  {
-    id: 2,
-    imageUrl: "/Hero/Hero2.jpg",
-    altText: "দই বিলাস স্পেশাল প্রিমিয়াম মিষ্টান্ন",
-    link: "/shop",
-  },
-];
 
 const DESKTOP_QUERY = "(min-width: 768px)";
 
@@ -35,7 +21,18 @@ function subscribeToDesktop(callback: () => void) {
   return () => mq.removeEventListener("change", callback);
 }
 
-export default function HeroSection() {
+type HeroSectionProps = {
+  banners: HeroBannerDTO[];
+};
+
+export default function HeroSection({ banners }: HeroSectionProps) {
+  const slides: Slide[] = banners.map((b) => ({
+    id: b.id,
+    imageUrl: b.imageUrl,
+    altText: b.altText,
+    link: b.link || "/shop",
+  }));
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -57,14 +54,19 @@ export default function HeroSection() {
     setCurrentIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
   }, [maxIndex]);
 
-  // Autoplay functionality
   useEffect(() => {
     if (isPaused || !canSlide) return;
     const interval = setInterval(() => {
       nextSlide();
-    }, 5500);
+    }, 4500);
     return () => clearInterval(interval);
   }, [nextSlide, isPaused, canSlide]);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [slides.length]);
+
+  if (slides.length === 0) return null;
 
   return (
     <section className="w-full md:max-w-7xl md:mx-auto md:px-6 lg:px-8 md:pt-6 md:pb-8">
@@ -73,7 +75,6 @@ export default function HeroSection() {
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
-        {/* Slides Track */}
         <div
           className="flex md:-mx-2.5 lg:-mx-3 transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ transform: `translateX(-${(activeIndex * 100) / perView}%)` }}
@@ -97,7 +98,7 @@ export default function HeroSection() {
                     alt={slide.altText}
                     fill
                     preload={index === 0}
-                    sizes="(min-width: 768px) 640px, 100vw"
+                    sizes="(min-width: 768px) 800px, 100vw"
                     className="object-cover object-center transition-transform duration-700 md:group-hover/card:scale-[1.03]"
                   />
                 </Link>
@@ -108,7 +109,6 @@ export default function HeroSection() {
 
         {canSlide && (
           <>
-            {/* Left Navigation Arrow */}
             <button
               type="button"
               onClick={prevSlide}
@@ -118,7 +118,6 @@ export default function HeroSection() {
               <ChevronLeft className="w-5 h-5" />
             </button>
 
-            {/* Right Navigation Arrow */}
             <button
               type="button"
               onClick={nextSlide}
@@ -128,7 +127,6 @@ export default function HeroSection() {
               <ChevronRight className="w-5 h-5" />
             </button>
 
-            {/* Pagination Dots */}
             <div className="absolute bottom-3 sm:bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2">
               {Array.from({ length: maxIndex + 1 }, (_, index) => (
                 <button

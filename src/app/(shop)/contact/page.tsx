@@ -19,6 +19,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import CorporateInquiryForm from "@/components/contact/CorporateInquiryForm";
+import prisma from "@/lib/prisma";
+import { DEFAULT_SETTINGS } from "@/lib/settingsStorage";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "কর্পোরেট যোগাযোগ — বিয়ে ও কর্পোরেট ইভেন্টের বিশেষ অর্ডার",
@@ -27,14 +31,32 @@ export const metadata: Metadata = pageMetadata({
   path: "/contact",
 });
 
-const CONTACT = {
-  phoneDisplay: "01645-460095",
-  phoneHref: "tel:+8801645460095",
-  whatsapp: "8801645460095",
-  email: "support@doibilash.com",
-  office: "বনানী, ঢাকা - ১২১৩, বাংলাদেশ",
-  factory: "শেরপুর রোড, বগুড়া সদর, বগুড়া",
-};
+async function getContactSettings() {
+  try {
+    const record = await prisma.storeSetting.findUnique({
+      where: { id: "default" },
+    });
+    const data = record ? (record.data as Record<string, unknown>) : {};
+    return { ...DEFAULT_SETTINGS, ...data };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function toWhatsappDigits(raw: string): string {
+  const digits = String(raw || "").replace(/[^\d]/g, "");
+  if (digits.startsWith("880")) return digits;
+  if (digits.startsWith("0")) return `88${digits}`;
+  return digits;
+}
+
+function toTelHref(raw: string): string {
+  const digits = String(raw || "").replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) return `tel:${digits}`;
+  if (digits.startsWith("88")) return `tel:+${digits}`;
+  if (digits.startsWith("0")) return `tel:+88${digits}`;
+  return `tel:${digits}`;
+}
 
 const HIGHLIGHTS = [
   { icon: BadgePercent, text: "৫০+ অর্ডারে বিশেষ ছাড়" },
@@ -72,21 +94,33 @@ const STEPS = [
   { number: "০৪", title: "সময়মতো ডেলিভারি", description: "কোল্ড-চেইনে নির্ধারিত তারিখে নিরাপদে পৌঁছে দেওয়া।" },
 ];
 
-const CONTACT_CARDS = [
-  { icon: PhoneCall, label: "কর্পোরেট হটলাইন", value: CONTACT.phoneDisplay, href: CONTACT.phoneHref, sans: true },
-  {
-    icon: MessageCircle,
-    label: "WhatsApp",
-    value: "সরাসরি মেসেজ করুন",
-    href: `https://wa.me/${CONTACT.whatsapp}`,
-    external: true,
-  },
-  { icon: Mail, label: "ইমেইল", value: CONTACT.email, href: `mailto:${CONTACT.email}`, sans: true },
-  { icon: MapPin, label: "অফিস", value: CONTACT.office },
-  { icon: Factory, label: "কারখানা", value: CONTACT.factory },
-];
+export default async function ContactPage() {
+  const settings = await getContactSettings();
+  const phoneDisplay = settings.hotline || settings.phone;
+  const whatsapp = toWhatsappDigits(settings.whatsapp || settings.phone);
+  const CONTACT = {
+    phoneDisplay,
+    phoneHref: toTelHref(phoneDisplay),
+    whatsapp,
+    email: settings.supportEmail,
+    office: settings.address,
+    factory: settings.factoryAddress || DEFAULT_SETTINGS.factoryAddress,
+  };
 
-export default function ContactPage() {
+  const CONTACT_CARDS = [
+    { icon: PhoneCall, label: "কর্পোরেট হটলাইন", value: CONTACT.phoneDisplay, href: CONTACT.phoneHref, sans: true },
+    {
+      icon: MessageCircle,
+      label: "WhatsApp",
+      value: "সরাসরি মেসেজ করুন",
+      href: settings.whatsappLink || `https://wa.me/${CONTACT.whatsapp}`,
+      external: true,
+    },
+    { icon: Mail, label: "ইমেইল", value: CONTACT.email, href: `mailto:${CONTACT.email}`, sans: true },
+    { icon: MapPin, label: "অফিস", value: CONTACT.office },
+    { icon: Factory, label: "কারখানা", value: CONTACT.factory },
+  ];
+
   return (
     <main className="min-h-screen bg-doibrand-light font-bengali text-doibrand-dark">
       {/* Hero */}

@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShoppingBag, CheckCircle2, Flame, ArrowRight, Zap } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { getStoredFlashDeals, OFFERS_UPDATED_EVENT } from "@/lib/offerStorage";
 
 interface FlashProduct {
   id: string | number;
@@ -102,26 +101,9 @@ export default function FlashDealSection() {
       }
     };
 
-    // Load from cache first
-    const stored = getStoredFlashDeals();
-    const activeStored = stored.filter((d) => d.isActive !== false);
-    if (activeStored.length > 0) {
-      setDeals(mapDeals(activeStored));
-    }
-
-    // Refresh from live API
     fetchLiveDeals();
-
-    const refresh = () => {
-      fetchLiveDeals();
-    };
-
-    window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
     return () => {
       isMounted = false;
-      window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
     };
   }, []);
 

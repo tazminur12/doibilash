@@ -26,21 +26,36 @@ import {
   CorporateOrder,
   CorporateOrderStatus,
   CORP_STATUS_META,
-  getCorporateOrderById,
-  saveCorporateOrder,
 } from "@/lib/corporateOrderStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function CorporateDetailView({ orderId }: { orderId: string }) {
   const router = useRouter();
   const [order, setOrder] = useState<CorporateOrder | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const found = getCorporateOrderById(orderId);
-    if (found) {
-      setOrder(found);
-    }
+    let cancelled = false;
+    (async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`/api/admin/corporate/${encodeURIComponent(orderId)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && data.order) {
+          setOrder(data.order);
+          return;
+        }
+      } catch {
+        /* order stays unavailable */
+      }
+      if (!cancelled) setOrder(null);
+    })().finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   const showToast = (msg: string) => {
@@ -48,12 +63,25 @@ export default function CorporateDetailView({ orderId }: { orderId: string }) {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleStatusUpdate = (newStatus: CorporateOrderStatus) => {
+  const handleStatusUpdate = async (newStatus: CorporateOrderStatus) => {
     if (!order) return;
-    const updated = { ...order, status: newStatus };
-    saveCorporateOrder(updated);
-    setOrder(updated);
-    showToast(`স্ট্যাটাস "${CORP_STATUS_META[newStatus].labelBn}" এ আপডেট হয়েছে!`);
+    try {
+      const res = await fetch(`/api/admin/corporate/${encodeURIComponent(order.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "স্ট্যাটাস আপডেট ব্যর্থ");
+        return;
+      }
+      const updated = { ...order, status: newStatus };
+      setOrder(data.order || updated);
+      showToast(`স্ট্যাটাস "${CORP_STATUS_META[newStatus].labelBn}" এ আপডেট হয়েছে!`);
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
+    }
   };
 
   const handlePrint = () => {
@@ -61,6 +89,14 @@ export default function CorporateDetailView({ orderId }: { orderId: string }) {
       window.print();
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="font-bengali p-12 text-center text-stone-500 text-sm">
+        কর্পোরেট অর্ডার লোড হচ্ছে...
+      </div>
+    );
+  }
 
   if (!order) {
     return (

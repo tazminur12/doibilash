@@ -33,13 +33,7 @@ import {
   ShoppingCart,
   Wallet,
 } from "lucide-react";
-import {
-  StoredProduct,
-  getStoredProducts,
-  saveProduct,
-  getProductByIdOrSlug,
-} from "@/lib/productStorage";
-import { getStoredCategories } from "@/lib/categoryStorage";
+import type { StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_PRODUCT_IMAGES = [
@@ -133,36 +127,75 @@ export default function ProductEditor() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<"general" | "images" | "details">("general");
 
-  // Load categories and existing product (if editing)
-  useEffect(() => {
-    const cats = getStoredCategories();
-    setAvailableCategories(cats.map((c) => ({ id: c.id, nameBn: c.nameBn, slug: c.slug })));
-
-    if (editId) {
-      const existing = getProductByIdOrSlug(editId);
-      if (existing) {
-        setName(existing.name);
-        setNameEn(existing.nameEn);
-        setSlug(existing.slug);
-        setCategory(existing.category || "প্রিমিয়াম দই");
-        setPrice(String(existing.price || ""));
-        const origStr = existing.originalPrice ? String(existing.originalPrice) : "";
-        setOriginalPrice(origStr);
-        if (existing.originalPrice && existing.price && existing.originalPrice > existing.price) {
-          const calculatedPct = Math.round(((existing.originalPrice - existing.price) / existing.originalPrice) * 100);
-          setDiscountPercentInput(String(calculatedPct));
-        } else {
-          setDiscountPercentInput("0");
-        }
-        setUnit(existing.unit || "১ কেজি মাটির সরা");
-        setStockStatus(existing.stockStatus || "In Stock");
-        setImage(existing.image || "/Product/doi.jpg");
-        setBadge(existing.badge || "Hot Sale");
-        setIsFeatured(Boolean(existing.isFeatured));
-        setDescription(existing.description || "");
-        setFeatures(existing.features && existing.features.length > 0 ? existing.features : []);
-      }
+  const hydrateProduct = (existing: StoredProduct) => {
+    setName(existing.name);
+    setNameEn(existing.nameEn);
+    setSlug(existing.slug);
+    setCategory(existing.category || "প্রিমিয়াম দই");
+    setPrice(String(existing.price || ""));
+    const origStr = existing.originalPrice ? String(existing.originalPrice) : "";
+    setOriginalPrice(origStr);
+    if (existing.originalPrice && existing.price && existing.originalPrice > existing.price) {
+      const calculatedPct = Math.round(
+        ((existing.originalPrice - existing.price) / existing.originalPrice) * 100
+      );
+      setDiscountPercentInput(String(calculatedPct));
+    } else {
+      setDiscountPercentInput("0");
     }
+    setUnit(existing.unit || "১ কেজি মাটির সরা");
+    setStockStatus(existing.stockStatus || "In Stock");
+    setStockQuantity(
+      String(
+        existing.stockQuantity ??
+          (existing.stockStatus === "Out of Stock" ? 0 : 50)
+      )
+    );
+    setImage(existing.image || "/Product/doi.jpg");
+    setBadge(existing.badge || "Hot Sale");
+    setIsFeatured(Boolean(existing.isFeatured));
+    setDescription(existing.description || "");
+    setFeatures(existing.features && existing.features.length > 0 ? existing.features : []);
+  };
+
+  // Load categories and existing product (if editing) from Supabase API
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const catRes = await fetch("/api/admin/categories");
+        const catData = await catRes.json();
+        if (!cancelled && catData.ok && Array.isArray(catData.categories)) {
+          setAvailableCategories(
+            catData.categories.map((c: { id: string; nameBn: string; slug: string }) => ({
+              id: c.id,
+              nameBn: c.nameBn,
+              slug: c.slug,
+            }))
+          );
+        }
+      } catch {
+        /* category list stays empty */
+      }
+
+      if (!editId || cancelled) return;
+
+      try {
+        const res = await fetch(`/api/admin/products/${encodeURIComponent(editId)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && data.product) {
+          hydrateProduct(data.product as StoredProduct);
+          return;
+        }
+      } catch {
+        /* product stays blank */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [editId]);
 
   // Calculations
@@ -248,41 +281,44 @@ export default function ProductEditor() {
     }
   };
 
-  // Image file handler
-  const processImageFile = (file: File) => {
+  // Image file handler → Cloudinary via /api/upload/product
+  const processImageFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       alert("অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন (JPG, PNG, WebP)");
       return;
     }
+    if (file.size > 8 * 1024 * 1024) {
+      alert("ছবির সাইজ সর্বোচ্চ ৮ মেগাবাইট (8MB) হতে পারবে।");
+      return;
+    }
+
     const sizeKb = Math.round(file.size / 1024);
     const sizeStr = sizeKb > 1024 ? `${(sizeKb / 1024).toFixed(1)} MB` : `${sizeKb} KB`;
     setUploadedFileName(file.name);
     setUploadedFileSize(sizeStr);
     setIsUploading(true);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setImage(e.target.result as string);
-        setIsUploading(false);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload/product", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok || !data.url) {
+        throw new Error(data.error || "ক্লাউডিনারি আপলোড ব্যর্থ হয়েছে");
       }
-    };
-    reader.readAsDataURL(file);
-
-    /*
-     * ── CLOUDINARY INTEGRATION HOOK ──────────────────────────────────
-     * পরবর্তীতে ব্যাকএন্ড তৈরি করার সময় এই লজিকটি সক্রিয় করতে পারেন:
-     * const formData = new FormData();
-     * formData.append("file", file);
-     * formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "doibilash_preset");
-     * const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
-     *   method: "POST",
-     *   body: formData,
-     * });
-     * const data = await res.json();
-     * setImage(data.secure_url);
-     * ────────────────────────────────────────────────────────────────
-     */
+      setImage(data.url);
+      setToastMessage("ছবি ক্লাউডিনারিতে আপলোড হয়েছে");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "ছবি আপলোড করতে সমস্যা হয়েছে।";
+      alert(message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -310,8 +346,8 @@ export default function ProductEditor() {
     setFeatures((prev) => prev.filter((f) => f !== text));
   };
 
-  // Save product
-  const handleSave = (e?: React.FormEvent) => {
+  // Save product → Supabase via admin API (Cloudinary URL already in image)
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -328,8 +364,12 @@ export default function ProductEditor() {
     setFormErrors({});
     setIsSaving(true);
 
+    const qty = Math.max(0, parseInt(stockQuantity, 10) || 0);
+    const resolvedStatus: StoredProduct["stockStatus"] =
+      stockStatus === "Out of Stock" || qty === 0 ? "Out of Stock" : "In Stock";
+
     const productToSave: StoredProduct = {
-      id: editId || `PROD-${Date.now().toString().slice(-4)}`,
+      id: editId || `PROD-${Date.now().toString().slice(-6)}`,
       slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
       name: name.trim(),
       nameEn: nameEn.trim() || name.trim(),
@@ -337,9 +377,11 @@ export default function ProductEditor() {
       price: numericPrice,
       originalPrice: numericOriginal > 0 ? numericOriginal : undefined,
       unit: unit.trim() || "১ কেজি মাটির সরা",
-      stockStatus: stockStatus,
+      stockStatus: resolvedStatus,
+      stockQuantity: qty,
       image: image || "/Product/doi.jpg",
-      description: description.trim() || `${name.trim()} - বগুড়ার আদি ও খাঁটি স্বাদের সেরা পণ্য।`,
+      description:
+        description.trim() || `${name.trim()} - বগুড়ার আদি ও খাঁটি স্বাদের সেরা পণ্য।`,
       features: features,
       badge: badge || undefined,
       isFeatured: isFeatured,
@@ -348,15 +390,40 @@ export default function ProductEditor() {
       createdAt: new Date().toISOString().split("T")[0],
     };
 
-    saveProduct(productToSave);
+    try {
+      const url = editId
+        ? `/api/admin/products/${encodeURIComponent(editId)}`
+        : "/api/admin/products";
+      const method = editId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(productToSave),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সুপাবেসে সংরক্ষণ ব্যর্থ হয়েছে");
+      }
 
-    setToastMessage(editId ? "পণ্যটি সফলভাবে আপডেট হয়েছে!" : "নতুন পণ্য সফলভাবে তালিকাভুক্ত হয়েছে!");
-    setShowToast(true);
+      setToastMessage(
+        data.message ||
+          (editId
+            ? "পণ্যটি সফলভাবে আপডেট হয়েছে!"
+            : "নতুন পণ্য সফলভাবে তালিকাভুক্ত হয়েছে!")
+      );
+      setShowToast(true);
 
-    setTimeout(() => {
+      setTimeout(() => {
+        setIsSaving(false);
+        router.push("/admin/products");
+      }, 1200);
+    } catch (err: unknown) {
       setIsSaving(false);
-      router.push("/admin/products");
-    }, 1200);
+      const message =
+        err instanceof Error ? err.message : "পণ্য সংরক্ষণ করতে সমস্যা হয়েছে।";
+      setFormErrors({ submit: message });
+      alert(message);
+    }
   };
 
   return (

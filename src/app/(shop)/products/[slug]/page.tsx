@@ -1,8 +1,23 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductDetailView from "@/components/product/ProductDetailView";
+import {
+  getProductByIdOrSlugDb,
+  getPublicProducts,
+} from "@/lib/productService";
+import {
+  relatedFromProducts,
+  storedProductToDetail,
+} from "@/lib/catalogMap";
 import { getProductDetail, getRelatedProducts } from "@/data/products";
-import { SITE, pageMetadata } from "@/lib/site";
+import { pageMetadata } from "@/lib/site";
+import {
+  JsonLd,
+  breadcrumbSchema,
+  productSchema,
+} from "@/lib/seo";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -10,17 +25,35 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductDetail(slug);
-  if (!product) return {};
+  const dbProduct = await getProductByIdOrSlugDb(slug, {
+    activeOnly: true,
+  }).catch(() => null);
+  const product = dbProduct
+    ? storedProductToDetail(dbProduct)
+    : getProductDetail(slug);
+  if (!product) return { robots: { index: false, follow: false } };
+
+  const desc =
+    product.description?.slice(0, 155) ||
+    `${product.title} — দই বিলাস থেকে অনলাইনে অর্ডার করুন। খাঁটি উপাদান, হোম ডেলিভারি।`;
+
   return pageMetadata({
-    title: product.title,
-    description: product.description,
+    title: `${product.title}${product.englishTitle ? ` (${product.englishTitle})` : ""}`,
+    description: desc,
     path: `/products/${product.slug}`,
-    image: { url: product.images[0], alt: product.title },
+    image: {
+      url: product.images[0],
+      alt: product.title,
+    },
+    keywords: [
+      product.title,
+      product.englishTitle,
+      "দই বিলাস",
+      "অনলাইন অর্ডার",
+      "হোম ডেলিভারি",
+    ].filter(Boolean) as string[],
   });
 }
-
-const absoluteUrl = (src: string) => (src.startsWith("http") ? src : `${SITE.url}${src}`);
 
 export default async function ProductDetailsPage({
   params,
@@ -28,37 +61,51 @@ export default async function ProductDetailsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProductDetail(slug);
+
+  const dbProduct = await getProductByIdOrSlugDb(slug, {
+    activeOnly: true,
+  }).catch(() => null);
+
+  const product = dbProduct
+    ? storedProductToDetail(dbProduct)
+    : getProductDetail(slug);
+
   if (!product) notFound();
 
-  const productJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    alternateName: product.englishTitle,
-    description: product.description,
-    image: product.images.filter((src) => !src.endsWith(".svg")).map(absoluteUrl),
-    brand: { "@type": "Brand", name: SITE.name },
-    offers: {
-      "@type": "Offer",
-      url: `${SITE.url}/products/${product.slug}`,
-      priceCurrency: "BDT",
-      price: product.price,
-      availability: product.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-      seller: { "@type": "Organization", name: SITE.name },
-    },
-    ...(product.rating && product.reviewsCount
-      ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating, reviewCount: product.reviewsCount } }
-      : {}),
-  };
+  const allProducts = dbProduct
+    ? await getPublicProducts().catch(() => [])
+    : [];
+  const related = dbProduct
+    ? relatedFromProducts(dbProduct, allProducts)
+    : getRelatedProducts(product);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd).replace(/</g, "\\u003c") }}
+      <JsonLd
+        data={[
+          productSchema({
+            name: product.title,
+            alternateName: product.englishTitle,
+            description: product.description,
+            images: product.images,
+            slug: product.slug,
+            price: product.price,
+            inStock: product.inStock,
+            category: product.categorySlug,
+            rating: product.rating,
+            reviewsCount: product.reviewsCount,
+          }),
+          breadcrumbSchema([
+            { name: "হোম", path: "/" },
+            { name: "সব পণ্য", path: "/shop" },
+            {
+              name: product.title,
+              path: `/products/${product.slug}`,
+            },
+          ]),
+        ]}
       />
-      <ProductDetailView key={slug} product={product} related={getRelatedProducts(product)} />
+      <ProductDetailView key={slug} product={product} related={related} />
     </>
   );
 }

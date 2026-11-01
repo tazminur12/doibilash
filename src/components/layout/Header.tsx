@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   CircleHelp,
   LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import {
@@ -98,26 +99,18 @@ export default function Header() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { openCart, totalCount } = useCart();
 
+  // Shadow only — never change header height on scroll (avoids sticky jump / "লাফালাফি")
   useEffect(() => {
     let ticking = false;
-    const SCROLL_DOWN_THRESHOLD = 70; // Only collapse after user scrolls down 70px
-    const SCROLL_UP_THRESHOLD = 15;   // Only expand when user scrolls back near top (< 15px)
-
     const onScroll = () => {
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const current = window.scrollY;
-          setIsScrolled((prev) => {
-            if (!prev && current > SCROLL_DOWN_THRESHOLD) return true;
-            if (prev && current < SCROLL_UP_THRESHOLD) return false;
-            return prev;
-          });
-          ticking = false;
-        });
-        ticking = true;
-      }
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        setIsScrolled(window.scrollY > 8);
+        ticking = false;
+      });
     };
-
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -178,61 +171,52 @@ export default function Header() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full">
-        {/* Tier 1: Announcement Bar */}
-        <div
-          className={`grid bg-doibrand-dark text-doibrand-light transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-            isScrolled ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
-          }`}
-        >
-          <div className="overflow-hidden min-h-0">
-            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-center lg:justify-between text-[12px]">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(196,138,78,0.18),transparent_70%)]" />
+        {/* Tier 1: Announcement Bar — fixed height (never collapses) */}
+        <div className="bg-doibrand-dark text-doibrand-light">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-9 flex items-center justify-center lg:justify-between text-[12px]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(196,138,78,0.18),transparent_70%)]" />
 
-              {/* Desktop: all promises in a row */}
-              <ul className="relative hidden lg:flex items-center gap-6">
-                {announcements.map(({ icon: Icon, text }) => (
-                  <li key={text} className="flex items-center gap-1.5 text-doibrand-light/80">
-                    <Icon className="w-3.5 h-3.5 text-doibrand-gold" />
-                    <span>{text}</span>
-                  </li>
-                ))}
-              </ul>
+            <ul className="relative hidden lg:flex items-center gap-6">
+              {announcements.map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-center gap-1.5 text-doibrand-light/80">
+                  <Icon className="w-3.5 h-3.5 text-doibrand-gold" />
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
 
-              {/* Mobile / Tablet: rotating promise */}
-              <p
+            {/* Fixed-height slot so rotating text never shifts the bar */}
+            <p className="relative lg:hidden flex h-9 items-center gap-1.5 text-doibrand-light/90">
+              <ActiveAnnouncementIcon className="w-3.5 h-3.5 shrink-0 text-doibrand-gold" />
+              <span
                 key={announcementIndex}
-                className="relative lg:hidden flex items-center gap-1.5 text-doibrand-light/90 animate-header-fade-up"
+                className="truncate animate-header-fade-up"
               >
-                <ActiveAnnouncementIcon className="w-3.5 h-3.5 text-doibrand-gold" />
-                <span>{announcements[announcementIndex].text}</span>
-              </p>
+                {announcements[announcementIndex].text}
+              </span>
+            </p>
 
-              <div className="relative hidden lg:flex items-center gap-4 text-doibrand-light/70">
-                <Link href="/track-order" className="flex items-center gap-1.5 hover:text-doibrand-gold transition-colors">
-                  <Truck className="w-3.5 h-3.5" />
-                  অর্ডার ট্র্যাক
-                </Link>
-                <span className="w-px h-3 bg-doibrand-light/20" />
-                <Link href="/faq" className="flex items-center gap-1.5 hover:text-doibrand-gold transition-colors">
-                  <CircleHelp className="w-3.5 h-3.5" />
-                  সাহায্য
-                </Link>
-              </div>
+            <div className="relative hidden lg:flex items-center gap-4 text-doibrand-light/70">
+              <Link href="/track-order" className="flex items-center gap-1.5 hover:text-doibrand-gold transition-colors">
+                <Truck className="w-3.5 h-3.5" />
+                অর্ডার ট্র্যাক
+              </Link>
+              <span className="w-px h-3 bg-doibrand-light/20" />
+              <Link href="/faq" className="flex items-center gap-1.5 hover:text-doibrand-gold transition-colors">
+                <CircleHelp className="w-3.5 h-3.5" />
+                সাহায্য
+              </Link>
             </div>
           </div>
         </div>
 
-        {/* Tier 2: Main Bar (glass) */}
+        {/* Tier 2: Main Bar — fixed row height on all breakpoints */}
         <div
-          className={`relative bg-doibrand-light/85 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-300 ${
+          className={`relative border-b border-doibrand-dark/5 bg-doibrand-light/95 backdrop-blur-xl backdrop-saturate-150 transition-shadow duration-300 ${
             isScrolled ? "shadow-[0_10px_30px_-12px_rgba(53,28,27,0.25)]" : ""
           }`}
         >
-          <div
-            className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 lg:gap-8 transition-[padding] duration-300 ${
-              isScrolled ? "py-2" : "py-3 sm:py-4"
-            }`}
-          >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3 lg:gap-8">
             {/* Hamburger + Logo */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <button
@@ -247,27 +231,19 @@ export default function Header() {
 
               <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group min-w-0">
                 <span className="relative shrink-0 rounded-full p-[1.5px] bg-linear-to-br from-[#E9C893] via-doibrand-gold to-doibrand-accent shadow-[0_4px_14px_-4px_rgba(196,138,78,0.6)] transition-transform duration-500 group-hover:rotate-[8deg]">
-                  <span
-                    className={`relative block rounded-full bg-white transition-all duration-300 ${
-                      isScrolled ? "w-9 h-9" : "w-10 h-10 sm:w-12 sm:h-12"
-                    }`}
-                  >
+                  <span className="relative block h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white">
                     <Image
                       src="/Logo/logo.png"
                       alt="দই বিলাস লোগো"
                       fill
-                      sizes="48px"
+                      sizes="40px"
                       className="object-contain p-1"
                       preload
                     />
                   </span>
                 </span>
-                <span className="flex flex-col leading-none min-w-0">
-                  <span
-                    className={`font-bold font-bengali text-doibrand-dark tracking-tight transition-all duration-300 ${
-                      isScrolled ? "text-xl sm:text-2xl" : "text-2xl sm:text-[28px]"
-                    }`}
-                  >
+                <span className="flex flex-col justify-center leading-none min-w-0">
+                  <span className="text-[22px] sm:text-2xl font-bold font-bengali text-doibrand-dark tracking-tight whitespace-nowrap">
                     দই বিলাস
                   </span>
                   <span className="mt-1 hidden sm:flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-doibrand-gold">
@@ -392,13 +368,32 @@ export default function Header() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-black text-doibrand-dark truncate">{currentUser.name}</p>
-                          <p className="text-[10px] text-stone-500 font-sans truncate">{currentUser.phone}</p>
+                          <p className="text-[10px] text-stone-500 font-sans truncate">
+                            {currentUser.role === "ADMIN"
+                              ? currentUser.email || currentUser.phone
+                              : currentUser.phone}
+                          </p>
+                          {currentUser.role === "ADMIN" && (
+                            <p className="mt-0.5 text-[10px] font-bold text-[#C48A4E]">
+                              {currentUser.teamRole || "অ্যাডমিন"}
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="space-y-0.5">
+                        {currentUser.role === "ADMIN" && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#351C1B] hover:text-doibrand-accent hover:bg-[#FFF9F1] rounded-xl transition"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-[#C48A4E]" />
+                            <span>অ্যাডমিন ড্যাশবোর্ড</span>
+                          </Link>
+                        )}
                         <Link
-                          href="/profile"
+                          href={currentUser.role === "ADMIN" ? "/admin/profile" : "/profile"}
                           onClick={() => setIsUserMenuOpen(false)}
                           className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-stone-700 hover:text-doibrand-accent hover:bg-[#FFF9F1] rounded-xl transition"
                         >
@@ -453,46 +448,40 @@ export default function Header() {
               <button
                 type="button"
                 onClick={openCart}
-                className="relative flex items-center gap-2 h-10 pl-3 pr-3 sm:pr-4 rounded-full bg-doibrand-dark text-doibrand-light shadow-[0_8px_20px_-8px_rgba(53,28,27,0.6)] hover:bg-doibrand-accent active:scale-95 transition cursor-pointer group"
+                className="relative flex items-center gap-2 h-10 shrink-0 pl-3 pr-3 sm:pr-4 rounded-full bg-doibrand-dark text-doibrand-light shadow-[0_8px_20px_-8px_rgba(53,28,27,0.6)] hover:bg-doibrand-accent active:scale-95 transition cursor-pointer group"
                 aria-label={`Open cart, ${totalCount} items`}
               >
                 <ShoppingBag className="w-[18px] h-[18px] transition-transform duration-300 group-hover:-rotate-12" />
                 <span className="hidden sm:inline text-xs font-semibold tracking-wide">কার্ট</span>
-                <span className="min-w-5 h-5 px-1.5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold text-doibrand-dark text-[11px] font-bold font-sans grid place-items-center">
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold text-doibrand-dark text-[11px] font-bold font-sans tabular-nums grid place-items-center">
                   {totalCount}
                 </span>
               </button>
             </div>
           </div>
 
-          {/* Mobile Search */}
-          <div
-            className={`md:hidden grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-              isScrolled ? "grid-rows-[0fr] opacity-0 pointer-events-none" : "grid-rows-[1fr] opacity-100"
-            }`}
-          >
-            <div className="overflow-hidden min-h-0">
-              <form onSubmit={handleSearchSubmit} className="px-4 pb-3" role="search">
-                <div className="relative flex items-center rounded-full bg-white border border-doibrand-dark/10 focus-within:border-doibrand-gold/60 focus-within:shadow-[0_0_0_3px_rgba(196,138,78,0.12)] transition">
-                  <Search className="absolute left-3.5 w-4 h-4 text-stone-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="দই, মিষ্টি, লাড্ডু খুঁজুন..."
-                    aria-label="Search products"
-                    className="w-full bg-transparent pl-10 pr-2 py-2.5 text-[13px] font-bengali text-doibrand-dark placeholder-stone-400 outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="shrink-0 m-1 w-8 h-8 grid place-items-center rounded-full bg-doibrand-dark text-doibrand-light"
-                    aria-label="Search"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </form>
-            </div>
+          {/* Mobile Search — always visible, fixed height (no scroll collapse) */}
+          <div className="md:hidden border-t border-doibrand-dark/[0.04]">
+            <form onSubmit={handleSearchSubmit} className="px-4 py-2.5" role="search">
+              <div className="relative flex h-10 items-center rounded-full bg-white border border-doibrand-dark/10 focus-within:border-doibrand-gold/60 focus-within:shadow-[0_0_0_3px_rgba(196,138,78,0.12)] transition">
+                <Search className="absolute left-3.5 w-4 h-4 text-stone-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="দই, মিষ্টি, লাড্ডু খুঁজুন..."
+                  aria-label="Search products"
+                  className="w-full bg-transparent pl-10 pr-2 h-full text-[13px] font-bengali text-doibrand-dark placeholder-stone-400 outline-none"
+                />
+                <button
+                  type="submit"
+                  className="shrink-0 m-1 w-8 h-8 grid place-items-center rounded-full bg-doibrand-dark text-doibrand-light"
+                  aria-label="Search"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* Tier 3: Desktop Navigation */}
@@ -606,32 +595,48 @@ export default function Header() {
 
             {/* Mobile User Profile Card / Login Prompt */}
             {currentUser ? (
-              <Link
-                href="/profile"
-                onClick={closeMenu}
-                className="relative mt-4 flex items-center gap-3 p-3 rounded-2xl bg-white/10 border border-white/10 hover:bg-white/15 transition group"
-              >
-                <div className="w-10 h-10 rounded-full overflow-hidden relative shrink-0 ring-2 ring-doibrand-gold">
-                  {currentUser.avatarUrl ? (
-                    <Image
-                      src={currentUser.avatarUrl}
-                      alt={currentUser.name}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-bold text-sm flex items-center justify-center">
-                      {Array.from(currentUser.name)[0] || "U"}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
-                  <p className="text-[10px] text-amber-200/80 font-sans truncate">{currentUser.phone}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-doibrand-gold group-hover:translate-x-0.5 transition-transform" />
-              </Link>
+              <div className="relative mt-4 space-y-2">
+                <Link
+                  href={currentUser.role === "ADMIN" ? "/admin/profile" : "/profile"}
+                  onClick={closeMenu}
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/10 border border-white/10 hover:bg-white/15 transition group"
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden relative shrink-0 ring-2 ring-doibrand-gold">
+                    {currentUser.avatarUrl ? (
+                      <Image
+                        src={currentUser.avatarUrl}
+                        alt={currentUser.name}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-bold text-sm flex items-center justify-center">
+                        {Array.from(currentUser.name)[0] || "U"}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                    <p className="text-[10px] text-amber-200/80 font-sans truncate">
+                      {currentUser.role === "ADMIN"
+                        ? currentUser.teamRole || "অ্যাডমিন"
+                        : currentUser.phone}
+                    </p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-doibrand-gold group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+                {currentUser.role === "ADMIN" && (
+                  <Link
+                    href="/admin"
+                    onClick={closeMenu}
+                    className="flex items-center justify-center gap-2 w-full py-2.5 px-3 rounded-xl bg-linear-to-r from-[#C48A4E] to-[#A95E35] text-white text-xs font-bold shadow-xs"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    অ্যাডমিন ড্যাশবোর্ড
+                  </Link>
+                )}
+              </div>
             ) : (
               <div className="relative mt-4 flex items-center gap-2">
                 <Link
@@ -658,6 +663,27 @@ export default function Header() {
               মেনু
             </p>
             <ul className="space-y-1">
+              {currentUser?.role === "ADMIN" && (
+                <li
+                  className={isMobileMenuOpen ? "animate-header-fade-up" : "opacity-0"}
+                  style={{ animationDelay: "40ms", animationFillMode: "both" }}
+                >
+                  <Link
+                    href="/admin"
+                    onClick={closeMenu}
+                    className="flex items-center gap-3 px-3 py-3 rounded-2xl bg-[#351C1B] text-amber-50 shadow-md transition group"
+                  >
+                    <span className="w-9 h-9 grid place-items-center rounded-xl bg-[#C48A4E] text-[#351C1B]">
+                      <LayoutDashboard className="w-[18px] h-[18px]" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-semibold">অ্যাডমিন ড্যাশবোর্ড</span>
+                      <span className="block text-[11px] text-amber-200/70 font-sans">Admin Panel</span>
+                    </span>
+                    <ChevronRight className="w-4 h-4 text-[#C48A4E] group-hover:translate-x-0.5 transition-transform" />
+                  </Link>
+                </li>
+              )}
               {navLinks.map((link, i) => {
                 const Icon = link.icon;
                 const active = isActive(link.href);

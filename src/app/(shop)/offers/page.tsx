@@ -23,13 +23,7 @@ import {
   StoredPromoCode,
   StoredFlashDeal,
   CampaignSettings,
-  getStoredPromos,
-  getStoredFlashDeals,
-  getStoredCampaignSettings,
-  DEFAULT_PROMOS,
-  DEFAULT_FLASH_DEALS,
   DEFAULT_CAMPAIGN_SETTINGS,
-  OFFERS_UPDATED_EVENT,
 } from "@/lib/offerStorage";
 
 const HOW_TO_STEPS = [
@@ -61,8 +55,8 @@ export default function SpecialOffersPage() {
   const nowSeconds = useNowSeconds();
   const now = nowSeconds === null ? null : nowSeconds * 1000;
 
-  const [promos, setPromos] = useState<StoredPromoCode[]>(DEFAULT_PROMOS);
-  const [flashDeals, setFlashDeals] = useState<StoredFlashDeal[]>(DEFAULT_FLASH_DEALS);
+  const [promos, setPromos] = useState<StoredPromoCode[]>([]);
+  const [flashDeals, setFlashDeals] = useState<StoredFlashDeal[]>([]);
   const [campaign, setCampaign] = useState<CampaignSettings>(DEFAULT_CAMPAIGN_SETTINGS);
 
   useEffect(() => {
@@ -76,21 +70,12 @@ export default function SpecialOffersPage() {
           if (json.ok && isMounted) {
             if (json.promos) {
               setPromos(json.promos);
-              try {
-                localStorage.setItem("doibilash_promo_codes_v2", JSON.stringify(json.promos));
-              } catch {}
             }
             if (json.flashDeals) {
               setFlashDeals(json.flashDeals);
-              try {
-                localStorage.setItem("doibilash_flash_deals_v2", JSON.stringify(json.flashDeals));
-              } catch {}
             }
             if (json.campaign) {
               setCampaign(json.campaign);
-              try {
-                localStorage.setItem("doibilash_campaign_settings_v2", JSON.stringify(json.campaign));
-              } catch {}
             }
           }
         }
@@ -99,24 +84,9 @@ export default function SpecialOffersPage() {
       }
     };
 
-    // Load from cache first for zero layout shift
-    setPromos(getStoredPromos());
-    setFlashDeals(getStoredFlashDeals());
-    setCampaign(getStoredCampaignSettings());
-
-    // Fetch freshest live data from backend
     fetchLiveOffers();
-
-    const refresh = () => {
-      fetchLiveOffers();
-    };
-
-    window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
-    window.addEventListener("storage", refresh);
     return () => {
       isMounted = false;
-      window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
     };
   }, []);
 

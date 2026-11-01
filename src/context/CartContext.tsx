@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 export interface CartItem {
   id: string | number;
@@ -26,34 +26,40 @@ interface CartContextType {
   totalCount: number;
 }
 
-const DEFAULT_ITEMS: CartItem[] = [
-  {
-    id: 1,
-    title: "বগুড়ার স্পেশাল সরার দই",
-    price: 500,
-    priceText: "৳ 500",
-    image:
-      "/Product/doi.jpg",
-    quantity: 1,
-    unit: "১ কেজি সরা",
-  },
-  {
-    id: 2,
-    title: "খাঁটি গাওয়া ঘি (দানাদার)",
-    price: 1450,
-    priceText: "৳ 1,450",
-    image:
-      "/Product/placeholder.svg",
-    quantity: 1,
-    unit: "৯০০ গ্রাম জার",
-  },
-];
+const STORAGE_KEY = "doibilash_cart_v1";
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function readStoredCart(): CartItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(DEFAULT_ITEMS);
+  const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setItems(readStoredCart());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    } catch {
+      /* ignore quota */
+    }
+  }, [items, hydrated]);
 
   const openCart = () => setIsOpen(true);
   const closeCart = () => setIsOpen(false);
@@ -119,22 +125,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useCart() {
-  const context = useContext(CartContext);
-  if (!context) {
-    // Graceful fallback for components rendered outside CartProvider
-    return {
-      items: DEFAULT_ITEMS,
-      isOpen: false,
-      openCart: () => {},
-      closeCart: () => {},
-      toggleCart: () => {},
-      addItem: () => {},
-      removeItem: () => {},
-      updateQuantity: () => {},
-      clearCart: () => {},
-      subtotal: 1950,
-      totalCount: 2,
-    };
+  const ctx = useContext(CartContext);
+  if (!ctx) {
+    throw new Error("useCart must be used within a CartProvider");
   }
-  return context;
+  return ctx;
 }

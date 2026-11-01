@@ -34,11 +34,8 @@ import {
   PackageStatus,
   PackageItemComponent,
   OCCASION_META,
-  getStoredPackages,
-  savePackage,
-  getPackageById,
 } from "@/lib/packageStorage";
-import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
+import type { StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_IMAGES = [
@@ -132,7 +129,18 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
   };
 
   useEffect(() => {
-    setProductsCatalogue(getStoredProducts());
+    let cancelled = false;
+    (async () => {
+      try {
+        const prodRes = await fetch("/api/admin/products");
+        const prodData = await prodRes.json();
+        if (!cancelled && prodData.ok && Array.isArray(prodData.products)) {
+          setProductsCatalogue(prodData.products);
+        }
+      } catch {
+        /* catalogue stays empty */
+      }
+    })();
 
     if (idFromParam) {
       const fetchPackage = async () => {
@@ -166,31 +174,12 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
         } catch (err) {
           console.error("Failed to fetch package from API:", err);
         }
-
-        const existing = getPackageById(idFromParam);
-        if (existing) {
-          setEditingId(existing.id);
-          setTitle(existing.title);
-          setSubtitle(existing.subtitle);
-          setOccasion(existing.occasion);
-          setPackagingType(existing.packagingType);
-          setPrice(existing.price);
-          setOriginalPrice(existing.originalPrice || existing.price);
-          setBadge(existing.badge || "উৎসব স্পেশাল");
-          setImage(existing.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg");
-          setAvailableStock(existing.availableStock || 50);
-          setIsFeatured(existing.isFeatured ?? true);
-          setStatus(existing.status || "Active");
-          setCustomGreetingAllowed(existing.customGreetingAllowed ?? true);
-          if (existing.components && existing.components.length > 0) {
-            setComponents(existing.components);
-          } else if (existing.features && existing.features.length > 0) {
-            setComponents(existing.features.map((f: string) => ({ name: f, quantity: "১টি" })));
-          }
-        }
       };
       fetchPackage();
     }
+    return () => {
+      cancelled = true;
+    };
   }, [idFromParam]);
 
   useEffect(() => {
@@ -340,11 +329,6 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
       }
-
-      savePackage({
-        ...payload,
-        createdAt: editingId ? (getPackageById(editingId)?.createdAt || "২০২৬-০১-১৫") : new Date().toISOString().split("T")[0],
-      });
 
       setSweetAlert({
         isOpen: true,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,24 +28,18 @@ import {
   Award,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { PROMO_CODES, evaluatePromo, isPromoExpired, type PromoCodeItem } from "@/data/promos";
-import { getStoredPromos } from "@/lib/offerStorage";
+import { evaluatePromo, isPromoExpired, type PromoCodeItem } from "@/data/promos";
+import { authFetch, getCurrentUser } from "@/lib/authStorage";
+import { DEFAULT_SETTINGS, type StoreSettings } from "@/lib/settingsStorage";
 import { toBnDigits } from "@/lib/bangla";
-
-const DELIVERY_OPTIONS = {
-  inside: { label: "ঢাকার ভেতরে", note: "২৪ ঘণ্টার মধ্যে ডেলিভারি", fee: 60, icon: Home },
-  outside: { label: "ঢাকার বাইরে", note: "৪৮–৭২ ঘণ্টায় ডেলিভারি", fee: 120, icon: Building2 },
-} as const;
 
 const PAYMENT_OPTIONS = {
   cod: { label: "ক্যাশ অন ডেলিভারি", note: "পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন", icon: Banknote },
   online: { label: "বিকাশ / নগদ", note: "মোবাইল ব্যাংকিংয়ে নিরাপদ অগ্রিম পেমেন্ট", icon: Smartphone },
 } as const;
 
-type DeliveryArea = keyof typeof DELIVERY_OPTIONS;
+type DeliveryArea = "inside" | "outside";
 type PaymentMethod = keyof typeof PAYMENT_OPTIONS;
-
-const FREE_DELIVERY_THRESHOLD = 3000;
 
 const BD_PHONE = /^(\+?88)?01[3-9]\d{8}$/;
 const normalizePhone = (v: string) => v.replace(/[\s-]/g, "");
@@ -139,6 +133,7 @@ export default function CheckoutPage() {
   const { items, subtotal, clearCart, openCart } = useCart();
   const now = useNowMinute();
 
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [altPhoneNumber, setAltPhoneNumber] = useState("");
@@ -148,33 +143,90 @@ export default function CheckoutPage() {
   const [orderNotes, setOrderNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneError, setPhoneError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const [couponCode, setCouponCode] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<PromoCodeItem | null>(null);
   const [couponError, setCouponError] = useState("");
+  const [livePromos, setLivePromos] = useState<PromoCodeItem[]>([]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (!cancelled && data.ok && data.settings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+        }
+      } catch {
+        /* keep defaults */
+      }
+    })();
+    (async () => {
+      try {
+        const res = await fetch("/api/offers");
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && Array.isArray(data.promos)) {
+          setLivePromos(data.promos);
+        }
+      } catch {
+        /* no suggestions without live offers */
+      }
+    })();
+    const user = getCurrentUser();
+    if (user) {
+      setFullName((prev) => prev || user.name || "");
+      setPhoneNumber((prev) => prev || user.phone || "");
+      setFullAddress((prev) => prev || user.address || "");
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const deliveryOptions = {
+    inside: {
+      label: "ঢাকার ভেতরে",
+      note: "২৪ ঘণ্টার মধ্যে ডেলিভারি",
+      fee: settings.deliveryInsideDhaka ?? 60,
+      icon: Home,
+    },
+    outside: {
+      label: "ঢাকার বাইরে",
+      note: "৪৮–৭২ ঘণ্টায় ডেলিভারি",
+      fee: settings.deliveryOutsideDhaka ?? 120,
+      icon: Building2,
+    },
+  } as const;
+
+  const freeThreshold = settings.freeShippingThreshold ?? 3000;
   const insideDhaka = deliveryArea === "inside";
   const promoCtx = { items, subtotal, insideDhaka, now: now ?? 0 };
+  // Keep an applied (server-validated) promo evaluable even if it is missing from the public list.
+  const promoPool =
+    appliedPromo && !livePromos.some((p) => p.code.toUpperCase() === appliedPromo.code.toUpperCase())
+      ? [...livePromos, appliedPromo]
+      : livePromos;
 
   // Re-evaluate the applied promo on every render so cart or delivery changes keep the discount honest.
-  const promoResult = appliedPromo ? evaluatePromo(appliedPromo.code, promoCtx) : null;
+  const promoResult = appliedPromo ? evaluatePromo(appliedPromo.code, promoCtx, promoPool) : null;
   const activePromo = promoResult?.ok ? promoResult : null;
   const promoInvalidated = appliedPromo !== null && promoResult !== null && !promoResult.ok;
 
-  const baseDeliveryFee = DELIVERY_OPTIONS[deliveryArea].fee;
-  const qualifiesForFreeDelivery = subtotal >= FREE_DELIVERY_THRESHOLD;
+  const baseDeliveryFee = deliveryOptions[deliveryArea].fee;
+  const qualifiesForFreeDelivery = subtotal >= freeThreshold;
   const isDeliveryFree = qualifiesForFreeDelivery || Boolean(activePromo?.freeDelivery);
   const deliveryFee = isDeliveryFree ? 0 : baseDeliveryFee;
   const couponDiscount = activePromo?.discount ?? 0;
   const grandTotal = Math.max(0, subtotal + deliveryFee - couponDiscount);
   const totalSavings = couponDiscount + (isDeliveryFree ? baseDeliveryFee : 0);
-  const amountToFreeDelivery = Math.max(0, FREE_DELIVERY_THRESHOLD - subtotal);
+  const amountToFreeDelivery = Math.max(0, freeThreshold - subtotal);
 
-  const allPromos = typeof window !== "undefined" ? getStoredPromos() : PROMO_CODES;
   const suggestedPromos =
     now === null
       ? []
-      : allPromos
+      : livePromos
           .filter((p) => p.isActive !== false && !isPromoExpired(p, now))
           .slice(0, 4);
 
@@ -205,7 +257,7 @@ export default function CheckoutPage() {
       // Fallback to local evaluatePromo below
     }
 
-    const result = evaluatePromo(code, promoCtx);
+    const result = evaluatePromo(code, promoCtx, promoPool);
     if (result.ok) {
       setAppliedPromo(result.promo);
       setCouponCode(result.promo.code);
@@ -222,17 +274,56 @@ export default function CheckoutPage() {
     setCouponError("");
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!BD_PHONE.test(normalizePhone(phoneNumber))) {
       setPhoneError("সঠিক মোবাইল নম্বর দিন (যেমন: 01XXXXXXXXX)");
       document.getElementById("phone")?.focus();
       return;
     }
+    if (!fullName.trim() || !fullAddress.trim()) {
+      setSubmitError("নাম ও সম্পূর্ণ ঠিকানা পূরণ করুন।");
+      return;
+    }
     setIsSubmitting(true);
-    const orderId = `DB-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    setTimeout(() => {
+    setSubmitError("");
+    try {
+      const res = await authFetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: fullName.trim(),
+          customerPhone: normalizePhone(phoneNumber),
+          customerEmail: getCurrentUser()?.email || undefined,
+          shippingAddress: fullAddress.trim(),
+          deliveryArea,
+          notes: [orderNotes.trim(), altPhoneNumber.trim() ? `বিকল্প ফোন: ${altPhoneNumber.trim()}` : ""]
+            .filter(Boolean)
+            .join(" | "),
+          items: items.map((it) => ({
+            id: String(it.id),
+            productId: String(it.id),
+            title: it.title,
+            price: it.price,
+            quantity: it.quantity,
+            unit: it.unit || "১টি",
+            image: it.image,
+          })),
+          subtotal,
+          deliveryFee,
+          discount: couponDiscount,
+          totalAmount: grandTotal,
+          paymentMethod,
+          promoCode: appliedPromo?.code,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        setSubmitError(data.error || "অর্ডার সম্পন্ন করা যায়নি।");
+        setIsSubmitting(false);
+        return;
+      }
+      const orderId = data.orderNumber || data.order?.id || "DB-00000";
       clearCart();
       const params = new URLSearchParams({
         orderId,
@@ -242,7 +333,10 @@ export default function CheckoutPage() {
         area: deliveryArea,
       });
       router.push(`/checkout/success?${params.toString()}`);
-    }, 900);
+    } catch {
+      setSubmitError("সার্ভারে সংযোগ করা যায়নি। আবার চেষ্টা করুন।");
+      setIsSubmitting(false);
+    }
   };
 
   const steps = [
@@ -424,8 +518,8 @@ export default function CheckoutPage() {
                 <fieldset className="pt-1">
                   <legend className="mb-3 text-xs font-semibold">ডেলিভারি এরিয়া</legend>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {(Object.keys(DELIVERY_OPTIONS) as DeliveryArea[]).map((key) => {
-                      const opt = DELIVERY_OPTIONS[key];
+                    {(Object.keys(deliveryOptions) as DeliveryArea[]).map((key) => {
+                      const opt = deliveryOptions[key];
                       return (
                         <OptionCard
                           key={key}
@@ -650,6 +744,13 @@ export default function CheckoutPage() {
                     </dd>
                   </div>
                 </dl>
+
+                {submitError && (
+                  <p className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2.5 text-xs font-medium text-red-700 ring-1 ring-red-100">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {submitError}
+                  </p>
+                )}
 
                 <button
                   type="submit"

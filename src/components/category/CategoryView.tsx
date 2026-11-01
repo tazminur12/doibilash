@@ -19,7 +19,13 @@ import {
 import ProductCard from "@/components/ui/ProductCard";
 import PriceRangeFilter from "@/components/shop/PriceRangeFilter";
 import FilterSheet from "@/components/shop/FilterSheet";
-import { ALL_TAG, CATEGORY_LIST, CATEGORY_MAP, categoryPriceBounds } from "@/data/categories";
+import {
+  ALL_TAG,
+  CATEGORY_LIST,
+  CATEGORY_MAP,
+  categoryPriceBounds,
+  type CategoryInfo,
+} from "@/data/categories";
 import { toBnDigits } from "@/lib/bangla";
 
 const SORT_OPTIONS = [
@@ -43,17 +49,25 @@ function SidebarHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function CategoryView({ slug }: { slug: string }) {
-  const category = CATEGORY_MAP[slug] || {
-    slug,
-    name: "ক্যাটাগরি",
-    englishName: "Category",
-    subtitle: "ঐতিহ্যবাহী সেরা মানের পণ্য সম্ভার",
-    image: "/Product/doi.jpg",
-    highlights: ["খাঁটি উপাদান", "প্রিজারভেটিভমুক্ত"],
-    tags: [ALL_TAG],
-    products: [],
-  };
+export default function CategoryView({
+  slug,
+  initialCategory,
+}: {
+  slug: string;
+  initialCategory?: CategoryInfo;
+}) {
+  const category =
+    initialCategory ||
+    CATEGORY_MAP[slug] || {
+      slug,
+      name: "ক্যাটাগরি",
+      englishName: "Category",
+      subtitle: "ঐতিহ্যবাহী সেরা মানের পণ্য সম্ভার",
+      image: "/Product/doi.jpg",
+      highlights: ["খাঁটি উপাদান", "প্রিজারভেটিভমুক্ত"],
+      tags: [ALL_TAG],
+      products: [],
+    };
   const bounds = useMemo(() => categoryPriceBounds(category), [category]);
 
   const [selectedTag, setSelectedTag] = useState<string>(ALL_TAG);

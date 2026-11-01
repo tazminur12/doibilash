@@ -37,24 +37,53 @@ export async function GET() {
       where: { id: userId },
     });
 
-    if (!user) {
+    if (user) {
+      return NextResponse.json({
+        ok: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          phone: user.phone,
+          email: user.email || `${user.phone}@customer.doibilash.com`,
+          avatarUrl: user.avatarUrl,
+          city: user.city,
+          address: user.address,
+          role: user.role,
+          joinedAt: user.createdAt.toISOString(),
+          shippingAddress: user.shippingAddress,
+          billingAddress: user.billingAddress,
+        },
+      });
+    }
+
+    // Admin / team member session (JWT userId = team_members.id)
+    const member = await prisma.teamMember.findUnique({
+      where: { id: userId },
+    });
+    if (!member || member.status === "Invited" || member.status === "Inactive") {
       return NextResponse.json({ ok: true, user: null }, { status: 200 });
     }
 
     return NextResponse.json({
       ok: true,
       user: {
-        id: user.id,
-        name: user.name,
-        phone: user.phone,
-        email: user.email || `${user.phone}@customer.doibilash.com`,
-        avatarUrl: user.avatarUrl,
-        city: user.city,
-        address: user.address,
-        role: user.role,
-        joinedAt: user.createdAt.toISOString(),
-        shippingAddress: user.shippingAddress,
-        billingAddress: user.billingAddress,
+        id: member.id,
+        name: member.name,
+        phone: member.phone || "",
+        email: member.email,
+        avatarUrl: member.avatarUrl,
+        city: "",
+        address: "",
+        role: "ADMIN",
+        teamRole: member.role,
+        designation: member.designation,
+        avatarInitials: member.avatarInitials,
+        permissions: Array.isArray(member.permissions)
+          ? member.permissions
+          : [],
+        joinedAt: member.createdAt.toISOString(),
+        shippingAddress: null,
+        billingAddress: null,
       },
     });
   } catch (error: unknown) {

@@ -7,6 +7,11 @@ export interface UserSession {
   city?: string;
   address?: string;
   role?: string;
+  /** Team panel role e.g. Super Admin / Manager / Moderator / Staff */
+  teamRole?: string;
+  designation?: string;
+  avatarInitials?: string;
+  permissions?: string[];
   joinedAt: string;
   shippingAddress?: unknown;
   billingAddress?: unknown;
@@ -155,7 +160,10 @@ export async function registerUser(data: {
 export async function loginUser(
   identifier: string,
   password?: string
-): Promise<{ ok: true; user: UserSession } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; user: UserSession; redirectTo?: string }
+  | { ok: false; error: string }
+> {
   try {
     const res = await authFetch("/api/auth/login", {
       method: "POST",
@@ -167,7 +175,7 @@ export async function loginUser(
     if (res.ok && json.ok) {
       if (json.token) setAuthToken(json.token);
       setCurrentUser(json.user);
-      return { ok: true, user: json.user };
+      return { ok: true, user: json.user, redirectTo: json.redirectTo };
     }
     return { ok: false, error: json.error || "মোবাইল নম্বর বা পাসওয়ার্ড সঠিক নয়।" };
   } catch (err) {

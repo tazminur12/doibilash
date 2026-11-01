@@ -29,21 +29,32 @@ import {
   CorporateOrder,
   CorporateOrderStatus,
   CORP_STATUS_META,
-  getStoredCorporateOrders,
-  deleteCorporateOrder,
-  saveCorporateOrder,
 } from "@/lib/corporateOrderStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminCorporateOrdersPage() {
   const [orders, setOrders] = useState<CorporateOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<CorporateOrderStatus | "ALL">("ALL");
   const [orderToDelete, setOrderToDelete] = useState<CorporateOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const loadData = () => {
-    setOrders(getStoredCorporateOrders());
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/corporate");
+      const data = await res.json();
+      if (res.ok && data.ok && Array.isArray(data.orders)) {
+        setOrders(data.orders);
+      } else {
+        setOrders([]);
+      }
+    } catch {
+      setOrders([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -55,19 +66,47 @@ export default function AdminCorporateOrdersPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleStatusChange = (order: CorporateOrder, newStatus: CorporateOrderStatus) => {
-    const updated = { ...order, status: newStatus };
-    saveCorporateOrder(updated);
-    loadData();
-    showToast(`অর্ডার "${order.companyName}" এর স্ট্যাটাস "${CORP_STATUS_META[newStatus].labelBn}" এ আপডেট হয়েছে!`);
+  const handleStatusChange = async (order: CorporateOrder, newStatus: CorporateOrderStatus) => {
+    try {
+      const res = await fetch(`/api/admin/corporate/${encodeURIComponent(order.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "স্ট্যাটাস আপডেট ব্যর্থ");
+        return;
+      }
+      await loadData();
+      showToast(
+        `অর্ডার "${order.companyName}" এর স্ট্যাটাস "${CORP_STATUS_META[newStatus].labelBn}" এ আপডেট হয়েছে!`
+      );
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!orderToDelete) return;
-    deleteCorporateOrder(orderToDelete.id);
-    loadData();
-    showToast(`কর্পোরেট অর্ডার "${orderToDelete.companyName}" মুছে ফেলা হয়েছে।`);
-    setOrderToDelete(null);
+    try {
+      const res = await fetch(
+        `/api/admin/corporate/${encodeURIComponent(orderToDelete.id)}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "মুছে ফেলা যায়নি");
+        setOrderToDelete(null);
+        return;
+      }
+      showToast(data.message || `কর্পোরেট অর্ডার "${orderToDelete.companyName}" মুছে ফেলা হয়েছে।`);
+      setOrderToDelete(null);
+      await loadData();
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
+      setOrderToDelete(null);
+    }
   };
 
   // Filtered
@@ -297,7 +336,21 @@ export default function AdminCorporateOrdersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100 text-sm">
-            {filteredOrders.map((order) => {
+            {isLoading ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-stone-400 text-sm">
+                  কর্পোরেট অর্ডার লোড হচ্ছে...
+                </td>
+              </tr>
+            ) : filteredOrders.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-12 text-center text-stone-400 text-sm">
+                  এখনো কোনো কর্পোরেট/বাল্ক অর্ডার নেই। নতুন কোটেশন তৈরি করুন।
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading &&
+              filteredOrders.map((order) => {
               const meta = CORP_STATUS_META[order.status] || CORP_STATUS_META["New Lead"];
               return (
                 <tr

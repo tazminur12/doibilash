@@ -31,10 +31,8 @@ import {
 import {
   StoredCustomer,
   TIER_META,
-  getCustomerById,
-  deleteCustomer,
 } from "@/lib/customerStorage";
-import { StoredOrder, getStoredOrders, STATUS_META } from "@/lib/orderStorage";
+import { StoredOrder, STATUS_META } from "@/lib/orderStorage";
 import OrderInvoice from "@/components/admin/OrderInvoice";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -98,23 +96,10 @@ export default function CustomerDetailView({ customerId }: { customerId: string 
           setCustomerOrders(data.orders);
         }
       } else {
-        const found = getCustomerById(customerId);
-        if (found) {
-          setCustomer(found);
-          const allOrders = getStoredOrders();
-          const matched = allOrders.filter(
-            (o) =>
-              o.customerPhone === found.phone ||
-              o.customerName.toLowerCase() === found.name.toLowerCase()
-          );
-          setCustomerOrders(matched);
-        }
+        setCustomer(null);
       }
     } catch {
-      const found = getCustomerById(customerId);
-      if (found) {
-        setCustomer(found);
-      }
+      setCustomer(null);
     } finally {
       setIsLoading(false);
     }

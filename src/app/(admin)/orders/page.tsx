@@ -28,25 +28,39 @@ import {
 } from "lucide-react";
 import {
   StoredOrder,
-  OrderStatus,
   STATUS_META,
-  getStoredOrders,
-  deleteOrder,
-  updateOrderStatus,
 } from "@/lib/orderStorage";
 import OrderInvoice from "@/components/admin/OrderInvoice";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<StoredOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusTab, setStatusTab] = useState<string>("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<StoredOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const loadOrders = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/orders");
+      const data = await res.json();
+      if (res.ok && data.ok && Array.isArray(data.orders)) {
+        setOrders(data.orders);
+      } else {
+        setOrders([]);
+      }
+    } catch {
+      setOrders([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setOrders(getStoredOrders());
+    loadOrders();
   }, []);
 
   const showToast = (msg: string) => {
@@ -54,11 +68,21 @@ export default function AdminOrdersPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm(`আপনি কি "${id}" অর্ডারটি মুছে ফেলতে চান?`)) {
-      const updated = deleteOrder(id);
-      setOrders(updated);
-      showToast(`অর্ডার #${id} সফলভাবে মুছে ফেলা হয়েছে`);
+  const handleDelete = async (id: string) => {
+    if (!confirm(`আপনি কি "${id}" অর্ডারটি মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`/api/admin/orders/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "অর্ডার মুছে ফেলা যায়নি");
+        return;
+      }
+      showToast(data.message || `অর্ডার #${id} সফলভাবে মুছে ফেলা হয়েছে`);
+      await loadOrders();
+    } catch {
+      showToast("সার্ভারে সংযোগ করা যায়নি");
     }
   };
 
@@ -256,10 +280,16 @@ export default function AdminOrdersPage() {
             </thead>
 
             <tbody className="divide-y divide-stone-100 text-stone-800">
-              {filteredOrders.length === 0 ? (
+              {isLoading ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-stone-400 text-sm">
-                    কোনো অর্ডার খুঁজে পাওয়া যায়নি।
+                    অর্ডার তালিকা লোড হচ্ছে...
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-stone-400 text-sm">
+                    এখনো কোনো অর্ডার নেই। নতুন ম্যানুয়াল অর্ডার তৈরি করুন।
                   </td>
                 </tr>
               ) : (

@@ -48,7 +48,7 @@ interface OrderItem {
   price: number;
 }
 
-interface DummyOrderData {
+interface TrackedOrderData {
   id: string;
   phone: string;
   date: string;
@@ -59,6 +59,7 @@ interface DummyOrderData {
   deliveryCharge: number;
   items: OrderItem[];
   updates: StepUpdate[];
+  cancelled?: boolean;
 }
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -77,50 +78,6 @@ const UPCOMING_DESCRIPTIONS = [
   "আপনার পণ্যটি শীঘ্রই পৌঁছে যাবে।",
 ];
 
-// Dummy lookup map — in production this would be an API call
-const DUMMY_ORDERS: Record<string, DummyOrderData> = {
-  "DB-1029": {
-    id: "#DB-1029",
-    phone: "01700000000",
-    date: "১৫ অক্টোবর, ২০২৬",
-    estimatedDelivery: "১৭ অক্টোবর, ২০২৬",
-    activeStepIndex: 2,
-    deliveryAddress: "বাড়ি #২২, রোড #৫, ধানমন্ডি, ঢাকা-১২০৫",
-    paymentMethod: "ক্যাশ অন ডেলিভারি",
-    deliveryCharge: 60,
-    items: [
-      { name: "বগুড়ার স্পেশাল সরার দই", qty: 2, price: 500 },
-      { name: "খাঁটি গাওয়া ঘি", qty: 1, price: 1450 },
-    ],
-    updates: [
-      { timestamp: "১৫ অক্টোবর, ৯:৩০ AM", description: "আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।" },
-      { timestamp: "১৫ অক্টোবর, ১১:০০ AM", description: "আপনার পণ্যটি কোল্ড-চেইন প্যাকেজিংয়ে প্যাক করা হয়েছে।" },
-      { timestamp: "১৬ অক্টোবর, ২:০০ PM", description: "পণ্যটি ডেলিভারি টিমের কাছে হস্তান্তর করা হয়েছে, পথে রয়েছে।" },
-    ],
-  },
-  "DB-1024": {
-    id: "#DB-1024",
-    phone: "01700000000",
-    date: "১০ অক্টোবর, ২০২৬",
-    estimatedDelivery: "১২ অক্টোবর, ২০২৬",
-    activeStepIndex: 3,
-    deliveryAddress: "বাড়ি #৮, সেক্টর #৪, উত্তরা, ঢাকা-১২৩০",
-    paymentMethod: "বিকাশ (পরিশোধিত)",
-    deliveryCharge: 60,
-    items: [
-      { name: "সুন্দরবনের প্রাকৃতিক মধু", qty: 1, price: 850 },
-      { name: "প্রিমিয়াম খোরমা খেজুর", qty: 2, price: 750 },
-    ],
-    updates: [
-      { timestamp: "১০ অক্টোবর, ১০:১৫ AM", description: "আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে।" },
-      { timestamp: "১০ অক্টোবর, ১:৪০ PM", description: "আপনার পণ্যটি প্যাক করা হয়েছে।" },
-      { timestamp: "১১ অক্টোবর, ৯:০০ AM", description: "পণ্যটি ডেলিভারি টিমের কাছে হস্তান্তর করা হয়েছে।" },
-      { timestamp: "১২ অক্টোবর, ১১:৩০ AM", description: "আপনার পণ্যটি সফলভাবে পৌঁছে দেওয়া হয়েছে। ধন্যবাদ!" },
-    ],
-  },
-};
-
-const DEMO = { orderId: "DB-1029", phone: "01700000000" };
 
 const HIGHLIGHTS = [
   { icon: Clock, text: "প্রতিটি ধাপের রিয়েল-টাইম আপডেট" },
@@ -151,10 +108,10 @@ export default function OrderTrackingPage() {
   const [orderId, setOrderId] = useState("");
   const [phone, setPhone] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [orderData, setOrderData] = useState<DummyOrderData | null>(null);
+  const [orderData, setOrderData] = useState<TrackedOrderData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleTrack = (e: React.FormEvent) => {
+  const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderId.trim() || !phone.trim()) {
       setError("অনুগ্রহ করে অর্ডার আইডি এবং ফোন নম্বর দিন।");
@@ -165,19 +122,23 @@ export default function OrderTrackingPage() {
     setError(null);
     setOrderData(null);
 
-    // Simulate network delay
-    setTimeout(() => {
-      const found = DUMMY_ORDERS[normalizeOrderId(orderId)];
-
-      if (found && found.phone === normalizePhone(phone)) {
-        setOrderData(found);
-      } else if (found) {
-        setError("ফোন নম্বরটি এই অর্ডারের সাথে মেলেনি। পুনরায় চেষ্টা করুন।");
+    try {
+      const params = new URLSearchParams({
+        orderNumber: normalizeOrderId(orderId),
+        phone: normalizePhone(phone),
+      });
+      const res = await fetch(`/api/orders/track?${params.toString()}`);
+      const data = await res.json();
+      if (data.ok && data.tracking) {
+        setOrderData(data.tracking as TrackedOrderData);
       } else {
-        setError("অর্ডারটি খুঁজে পাওয়া যায়নি। অর্ডার আইডি যাচাই করুন।");
+        setError(data.error || "অর্ডারটি খুঁজে পাওয়া যায়নি।");
       }
+    } catch {
+      setError("সার্ভারে সংযোগ করা যায়নি। আবার চেষ্টা করুন।");
+    } finally {
       setIsLoading(false);
-    }, 900);
+    }
   };
 
   const resetSearch = () => {
@@ -310,18 +271,9 @@ export default function OrderTrackingPage() {
                 </button>
               </form>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderId(DEMO.orderId);
-                  setPhone(DEMO.phone);
-                  setError(null);
-                }}
-                className="mt-4 w-full rounded-xl bg-[#FFF9F1] px-4 py-2.5 text-[11px] text-stone-500 border border-dashed border-doibrand-gold/40 hover:border-doibrand-gold/70 transition cursor-pointer"
-              >
-                ডেমো দেখতে চাপুন: <span className="font-sans font-bold text-doibrand-accent">{DEMO.orderId}</span> ·{" "}
-                <span className="font-sans font-bold text-doibrand-accent">{DEMO.phone}</span>
-              </button>
+              <p className="mt-4 text-center text-[11px] text-stone-400">
+                অর্ডার কনফার্মেশন মেসেজ বা ইমেইলে পাওয়া আইডি ব্যবহার করুন।
+              </p>
             </div>
           </div>
         </div>

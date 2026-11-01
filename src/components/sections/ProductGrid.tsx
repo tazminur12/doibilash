@@ -1,67 +1,28 @@
 import React from "react";
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { TrendingUp, ChevronRight } from "lucide-react";
-import ProductCard, { ProductItem } from "@/components/ui/ProductCard";
+import ProductCard from "@/components/ui/ProductCard";
+import { storedProductToCardItem } from "@/lib/catalogMap";
+import { getTopSellingProducts } from "@/lib/productService";
 
-const TOP_SELLING_PRODUCTS: ProductItem[] = [
-  {
-    id: 1,
-    slug: "bogra-special-doi",
-    title: "বগুড়ার স্পেশাল সরার দই",
-    price: "৳ 500",
-    originalPrice: "৳ 600",
-    image: "/Product/doi.jpg",
-    badge: "Hot Sale",
-    unit: "১ কেজি সরা",
-  },
-  {
-    id: 2,
-    slug: "special-ghee-roasted-laccha-semai",
-    title: "গাওয়া ঘিয়ে ভাজা স্পেশাল লাচ্ছা সেমাই",
-    price: "৳ 480",
-    originalPrice: "৳ 560",
-    image: "/Product/laccha_semai.jpg",
-    badge: "হট ডিল",
-    unit: "৫০০ গ্রাম বক্স",
-  },
-  {
-    id: 3,
-    slug: "mini-doi-cup",
-    title: "স্পেশাল মাটির কাপ দই (৪ পিস)",
-    price: "৳ 420",
-    originalPrice: "৳ 480",
-    image: "/Product/mini_doi.png",
-    badge: "জনপ্রিয়",
-    unit: "৪ কাপ বক্স",
-  },
-  {
-    id: 4,
-    slug: "mango-special-doi",
-    title: "আমের স্পেশাল শাহী মিষ্টি দই",
-    price: "৳ 550",
-    originalPrice: "৳ 650",
-    image: "/Product/mango.jpg",
-    badge: "স্পেশাল",
-    unit: "১ কেজি সরা",
-  },
-  {
-    id: 5,
-    slug: "pure-ghee",
-    title: "খাঁটি গাওয়া ঘি (দানাদার)",
-    price: "৳ 1,450",
-    originalPrice: "৳ 1,600",
-    image:
-      "/Product/placeholder.svg",
-    badge: "Discount",
-    unit: "৯০০ গ্রাম জার",
-  },
-];
+const getCachedTopSelling = unstable_cache(
+  async () => getTopSellingProducts(5),
+  ["home-top-selling-products-v1"],
+  { revalidate: 60 }
+);
 
-export default function ProductGrid() {
+export default async function ProductGrid() {
+  const products = await getCachedTopSelling()
+    .then((rows) => rows.map(storedProductToCardItem))
+    .catch((err) => {
+      console.error("ProductGrid load failed:", err);
+      return [];
+    });
+
   return (
     <section className="w-full font-bengali pb-12 md:pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
         <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-3 py-1 text-[11px] font-semibold text-doibrand-accent shadow-[0_4px_12px_-8px_rgba(169,94,53,0.6)]">
@@ -88,14 +49,18 @@ export default function ProductGrid() {
           </Link>
         </div>
 
-        {/* Product CSS Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
-          {TOP_SELLING_PRODUCTS.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {products.length === 0 ? (
+          <div className="rounded-2xl bg-white/70 ring-1 ring-stone-200 py-12 text-center text-sm text-stone-500">
+            এখনো কোনো পণ্য নেই। শীঘ্রই যুক্ত হবে।
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
+            {products.map((product) => (
+              <ProductCard key={product.id ?? product.slug} product={product} />
+            ))}
+          </div>
+        )}
 
-        {/* Mobile View All Link */}
         <Link
           href="/shop"
           className="sm:hidden mt-5 flex items-center justify-center gap-1 text-sm font-semibold text-doibrand-accent"

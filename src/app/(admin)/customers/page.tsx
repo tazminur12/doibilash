@@ -37,9 +37,6 @@ import {
   CustomerTier,
   CustomerStatus,
   TIER_META,
-  getStoredCustomers,
-  deleteCustomer,
-  saveCustomer,
 } from "@/lib/customerStorage";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -102,11 +99,11 @@ export default function AdminCustomersPage() {
       if (data.ok && Array.isArray(data.customers)) {
         setCustomers(data.customers);
       } else {
-        setCustomers(getStoredCustomers());
+        setCustomers([]);
       }
     } catch (err) {
-      console.error("Failed to fetch customers from API, using fallback:", err);
-      setCustomers(getStoredCustomers());
+      console.error("Failed to fetch customers from API:", err);
+      setCustomers([]);
     } finally {
       setIsLoading(false);
     }

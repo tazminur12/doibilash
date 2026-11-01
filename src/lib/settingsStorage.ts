@@ -132,36 +132,3 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   maintenanceMessage:
     "দই বিলাসের ওয়েবসাইট আপগ্রেড চলছে। সাময়িক অসুবিধার জন্য আমরা আন্তরিকভাবে দুঃখিত। জরুরি অর্ডারে কল করুন: 01712-345678",
 };
-
-const SETTINGS_STORAGE_KEY = "doibilash_admin_settings_v2";
-
-export function getStoreSettings(): StoreSettings {
-  if (typeof window === "undefined") {
-    return DEFAULT_SETTINGS;
-  }
-  try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(DEFAULT_SETTINGS));
-      return DEFAULT_SETTINGS;
-    }
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_SETTINGS, ...parsed };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-export function saveStoreSettings(settings: StoreSettings): StoreSettings {
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-      window.dispatchEvent(
-        new CustomEvent("doibilash_settings_updated", { detail: settings })
-      );
-    } catch (err) {
-      console.error("Failed to save store settings to localStorage", err);
-    }
-  }
-  return settings;
-}

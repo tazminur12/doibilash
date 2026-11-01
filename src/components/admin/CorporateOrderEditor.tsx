@@ -29,11 +29,8 @@ import {
   CorporateEventType,
   CorporateOrderStatus,
   CORP_STATUS_META,
-  getStoredCorporateOrders,
-  saveCorporateOrder,
-  getCorporateOrderById,
 } from "@/lib/corporateOrderStorage";
-import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
+import type { StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const EVENT_TYPES: CorporateEventType[] = [
@@ -50,44 +47,31 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
   const searchParams = useSearchParams();
   const idFromParam = orderId || searchParams.get("id") || searchParams.get("edit");
 
-  // Client Details
+  // Client Details — empty defaults (no demo fill)
   const [companyName, setCompanyName] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [designation, setDesignation] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [eventType, setEventType] = useState<CorporateEventType>("ঈদ ও উৎসব উপহার");
-  const [deliveryDate, setDeliveryDate] = useState("২০২৬-০৩-২৫");
+  const [deliveryDate, setDeliveryDate] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
-  const [approxQuantityText, setApproxQuantityText] = useState("১০০ বক্স");
+  const [approxQuantityText, setApproxQuantityText] = useState("");
 
   // Items
-  const [items, setItems] = useState<CorporateOrderItem[]>([
-    {
-      productTitle: "বগুড়ার স্পেশাল সরার মিষ্টি দই (১ কেজি)",
-      quantity: 100,
-      unitPrice: 500,
-      totalPrice: 50000,
-      packagingCustomization: "কাস্টম ব্র্যান্ডের লোগো ও সিল্ক রিবন ফিতা",
-    },
-    {
-      productTitle: "খাঁটি দানাদার গাওয়া ঘি (৫০০ গ্রাম জার)",
-      quantity: 100,
-      unitPrice: 950,
-      totalPrice: 95000,
-    },
-  ]);
+  const [items, setItems] = useState<CorporateOrderItem[]>([]);
 
   // Financials
-  const [customBrandingFee, setCustomBrandingFee] = useState<number>(5000);
-  const [advancePaid, setAdvancePaid] = useState<number>(50000);
+  const [customBrandingFee, setCustomBrandingFee] = useState<number>(0);
+  const [advancePaid, setAdvancePaid] = useState<number>(0);
   const [paymentTerms, setPaymentTerms] = useState(
     "৫০% অ্যাডভান্স ব্যাংক বিএফটিএন + ডেলিভারির দিনে অবশিষ্ট চেক"
   );
   const [status, setStatus] = useState<CorporateOrderStatus>("New Lead");
-  const [assignedManager, setAssignedManager] = useState("তাজমিনুর রহমান (সুপার অ্যাডমিন)");
-  const [customLogoBranding, setCustomLogoBranding] = useState(true);
+  const [assignedManager, setAssignedManager] = useState("");
+  const [customLogoBranding, setCustomLogoBranding] = useState(false);
   const [notes, setNotes] = useState("");
+  const [quotationNo, setQuotationNo] = useState("");
 
   const [productsCatalogue, setProductsCatalogue] = useState<StoredProduct[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -99,32 +83,59 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
   const totalBudget = subtotal + Number(customBrandingFee || 0);
   const dueAmount = Math.max(0, totalBudget - Number(advancePaid || 0));
 
-  useEffect(() => {
-    setProductsCatalogue(getStoredProducts());
+  const hydrateOrder = (existing: CorporateOrder) => {
+    setEditingId(existing.id);
+    setQuotationNo(existing.quotationNo);
+    setCompanyName(existing.companyName);
+    setContactPerson(existing.contactPerson);
+    setDesignation(existing.designation);
+    setPhone(existing.phone);
+    setEmail(existing.email);
+    setEventType(existing.eventType);
+    setDeliveryDate(existing.deliveryDate);
+    setDeliveryAddress(existing.deliveryAddress);
+    setApproxQuantityText(existing.approxQuantityText);
+    setItems(existing.items || []);
+    setCustomBrandingFee(existing.customBrandingFee || 0);
+    setAdvancePaid(existing.advancePaid || 0);
+    setPaymentTerms(existing.paymentTerms);
+    setStatus(existing.status);
+    setAssignedManager(existing.assignedManager);
+    setCustomLogoBranding(existing.customLogoBranding ?? false);
+    setNotes(existing.notes || "");
+  };
 
-    if (idFromParam) {
-      const existing = getCorporateOrderById(idFromParam);
-      if (existing) {
-        setEditingId(existing.id);
-        setCompanyName(existing.companyName);
-        setContactPerson(existing.contactPerson);
-        setDesignation(existing.designation);
-        setPhone(existing.phone);
-        setEmail(existing.email);
-        setEventType(existing.eventType);
-        setDeliveryDate(existing.deliveryDate);
-        setDeliveryAddress(existing.deliveryAddress);
-        setApproxQuantityText(existing.approxQuantityText);
-        setItems(existing.items);
-        setCustomBrandingFee(existing.customBrandingFee || 0);
-        setAdvancePaid(existing.advancePaid || 0);
-        setPaymentTerms(existing.paymentTerms);
-        setStatus(existing.status);
-        setAssignedManager(existing.assignedManager);
-        setCustomLogoBranding(existing.customLogoBranding ?? true);
-        setNotes(existing.notes || "");
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const prodRes = await fetch("/api/admin/products");
+        const prodData = await prodRes.json();
+        if (!cancelled && prodData.ok && Array.isArray(prodData.products)) {
+          setProductsCatalogue(prodData.products);
+        }
+      } catch {
+        /* catalogue stays empty */
       }
-    }
+
+      if (!idFromParam || cancelled) return;
+
+      try {
+        const res = await fetch(`/api/admin/corporate/${encodeURIComponent(idFromParam)}`);
+        const data = await res.json();
+        if (!cancelled && res.ok && data.ok && data.order) {
+          hydrateOrder(data.order as CorporateOrder);
+          return;
+        }
+      } catch {
+        /* order stays blank */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [idFromParam]);
 
   const showToast = (msg: string) => {
@@ -174,7 +185,7 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
     showToast(`"${prod.name}" কোটেশনে যুক্ত হয়েছে!`);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName.trim() || !contactPerson.trim() || !phone.trim()) {
       alert("দয়া করে প্রতিষ্ঠানের নাম, যোগাযোগকারী ও ফোন নম্বর প্রদান করুন।");
@@ -182,12 +193,15 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
     }
 
     setIsSaving(true);
-    const finalId = editingId || `CORP-${new Date().getFullYear()}-${Date.now().toString().slice(-3)}`;
-    const quotationNo = `QT-DB-${Math.floor(100 + Math.random() * 900)}`;
+    const finalId =
+      editingId || `CORP-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    const qtNo =
+      quotationNo ||
+      `QT-DB-${Math.floor(100 + Math.random() * 900)}`;
 
     const newOrder: CorporateOrder = {
       id: finalId,
-      quotationNo: editingId ? (getCorporateOrderById(editingId)?.quotationNo || quotationNo) : quotationNo,
+      quotationNo: qtNo,
       companyName: companyName.trim(),
       contactPerson: contactPerson.trim(),
       designation: designation.trim(),
@@ -197,7 +211,7 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
       deliveryDate,
       deliveryAddress,
       approxQuantityText,
-      items,
+      items: items.filter((it) => it.productTitle.trim().length > 0),
       subtotal,
       vatOrTaxPercent: 0,
       vatOrTaxAmount: 0,
@@ -210,17 +224,38 @@ export default function CorporateOrderEditor({ orderId }: { orderId?: string }) 
       assignedManager,
       customLogoBranding,
       notes,
-      createdAt: editingId ? (getCorporateOrderById(editingId)?.createdAt || "২০২৬-০১-২০") : "আজকের তারিখ",
+      createdAt: new Date().toISOString().split("T")[0],
     };
 
-    setTimeout(() => {
-      saveCorporateOrder(newOrder);
+    try {
+      const url = editingId
+        ? `/api/admin/corporate/${encodeURIComponent(editingId)}`
+        : "/api/admin/corporate";
+      const method = editingId ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newOrder),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
       setIsSaving(false);
-      showToast(editingId ? "কর্পোরেট অর্ডার তথ্য আপডেট হয়েছে!" : "নতুন কর্পোরেট অর্ডার/কোটেশন সংরক্ষিত হয়েছে!");
+      showToast(
+        data.message ||
+          (editingId
+            ? "কর্পোরেট অর্ডার তথ্য আপডেট হয়েছে!"
+            : "নতুন কর্পোরেট অর্ডার/কোটেশন সংরক্ষিত হয়েছে!")
+      );
       setTimeout(() => {
         router.push("/admin/corporate");
       }, 700);
-    }, 400);
+    } catch (err: unknown) {
+      setIsSaving(false);
+      alert(err instanceof Error ? err.message : "সার্ভারে সংযোগ করা যায়নি");
+    }
   };
 
   return (

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -17,15 +17,21 @@ import {
   ExternalLink,
   Sparkles,
   ChevronRight,
-  TrendingUp,
-  Star,
-  Sliders,
-  CheckCircle2,
   Store,
   Gift,
   Building2,
   TicketPercent,
+  UserRound,
+  Images,
 } from "lucide-react";
+import {
+  AUTH_CHANGED_EVENT,
+  clearCurrentUser,
+  getCurrentUser,
+  syncCurrentUserWithServer,
+  type UserSession,
+} from "@/lib/authStorage";
+import { ROLE_META, type TeamRole } from "@/lib/teamStorage";
 
 interface AdminSidebarProps {
   isOpen?: boolean;
@@ -98,6 +104,14 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     groupTitleBn: "মার্কেটিং ও অফার (Campaigns)",
     items: [
       {
+        name: "Hero Banners",
+        nameBn: "হিরো ব্যানার",
+        href: "/admin/banners",
+        icon: Images,
+        badge: "হোম",
+        badgeColor: "bg-[#351C1B] text-white",
+      },
+      {
         name: "Offers & Promos",
         nameBn: "অফার ও প্রোমো কোড",
         href: "/admin/offers",
@@ -122,6 +136,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     groupTitleBn: "সিস্টেম ও টিম এক্সেস",
     items: [
       {
+        name: "My Profile",
+        nameBn: "আমার প্রোফাইল",
+        href: "/admin/profile",
+        icon: UserRound,
+      },
+      {
         name: "Team & Staff",
         nameBn: "টিম ও রোলস",
         href: "/admin/team",
@@ -137,9 +157,30 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+function teamRoleLabelBn(role?: string): string {
+  if (!role) return "অ্যাডমিন";
+  const meta = ROLE_META[role as TeamRole];
+  if (meta) return meta.labelBn.split(" (")[0];
+  return role;
+}
+
 export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [adminUser, setAdminUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    setAdminUser(getCurrentUser());
+    syncCurrentUserWithServer().then((u) => {
+      if (u) setAdminUser(u);
+    });
+    const onAuth = (e: Event) => {
+      setAdminUser((e as CustomEvent).detail as UserSession | null);
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, onAuth as EventListener);
+    return () => window.removeEventListener(AUTH_CHANGED_EVENT, onAuth as EventListener);
+  }, []);
 
   const isRouteActive = (href: string) => {
     if (href === "/admin") {
@@ -149,10 +190,22 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
   };
 
   const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.location.href = "/";
-    }
+    clearCurrentUser();
+    router.push("/login");
   };
+
+  const displayName = adminUser?.name || "সুপার অ্যাডমিন";
+  const displayEmail = adminUser?.email || "admin@doibilash.com";
+  const displayRole = teamRoleLabelBn(adminUser?.teamRole);
+  const displayInitials =
+    adminUser?.avatarInitials ||
+    (adminUser?.name
+      ? adminUser.name
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((p) => p[0] || "")
+          .join("")
+      : "দবি");
 
   const SidebarContent = (
     <div className="flex flex-col h-full font-bengali bg-linear-to-b from-[#200F0E] via-[#2A1413] to-[#180A09] text-amber-50/90 relative overflow-hidden select-none">
@@ -311,26 +364,36 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
         </Link>
 
         {/* Admin User Card with Logout */}
-        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5">
+        <Link
+          href="/admin/profile"
+          onClick={onClose}
+          className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors group"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-full bg-linear-to-br from-[#C48A4E] to-[#A95E35] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-              দবি
+              {displayInitials}
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-white truncate">সুপার অ্যাডমিন</div>
-              <div className="text-[10px] text-stone-400 truncate">admin@doibilash.com</div>
+              <div className="text-xs font-bold text-white truncate">{displayName}</div>
+              <div className="text-[10px] text-stone-400 truncate">
+                {displayRole} · {displayEmail}
+              </div>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() => setShowLogoutConfirm(true)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowLogoutConfirm(true);
+            }}
             title="লগআউট"
             className="p-1.5 rounded-lg text-stone-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
           >
             <LogOut className="w-4 h-4" />
           </button>
-        </div>
+        </Link>
       </div>
 
       {/* Logout Confirmation Dialog */}

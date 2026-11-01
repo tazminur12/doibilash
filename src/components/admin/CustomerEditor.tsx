@@ -24,9 +24,6 @@ import {
   CustomerTier,
   CustomerStatus,
   TIER_META,
-  getStoredCustomers,
-  saveCustomer,
-  getCustomerById,
 } from "@/lib/customerStorage";
 
 const SUGGESTED_PREFERENCES = [
@@ -125,34 +122,10 @@ export default function CustomerEditor({ customerId }: { customerId?: string }) 
             setStatus(cust.status || "Active");
             setNotes(cust.notes || "");
             setPreferences(Array.isArray(cust.preferences) ? cust.preferences : []);
-          } else {
-            const existing = getCustomerById(idFromParam);
-            if (existing) {
-              setName(existing.name);
-              setPhone(existing.phone);
-              setEmail(existing.email || "");
-              setAddress(existing.address);
-              setCity(existing.city || "ঢাকা সিটি");
-              setTier(existing.tier || "Regular");
-              setStatus(existing.status || "Active");
-              setNotes(existing.notes || "");
-              setPreferences(existing.preferences || []);
-            }
           }
         })
         .catch(() => {
-          const existing = getCustomerById(idFromParam);
-          if (existing) {
-            setName(existing.name);
-            setPhone(existing.phone);
-            setEmail(existing.email || "");
-            setAddress(existing.address);
-            setCity(existing.city || "ঢাকা সিটি");
-            setTier(existing.tier || "Regular");
-            setStatus(existing.status || "Active");
-            setNotes(existing.notes || "");
-            setPreferences(existing.preferences || []);
-          }
+          /* form stays blank when the API is unreachable */
         })
         .finally(() => setIsLoading(false));
     }
@@ -223,15 +196,6 @@ export default function CustomerEditor({ customerId }: { customerId?: string }) 
           return;
         }
 
-        saveCustomer({
-          id: idFromParam,
-          ...payload,
-          totalOrders: 0,
-          totalSpent: 0,
-          joinedDate: "আজকে",
-          avatarInitials: name.trim().slice(0, 2),
-        });
-
         fireAlert({
           type: "success",
           title: "আপডেট সম্পন্ন!",
@@ -262,15 +226,6 @@ export default function CustomerEditor({ customerId }: { customerId?: string }) 
         }
 
         const newId = data.customer?.id;
-        saveCustomer({
-          id: newId || `CUST-${Date.now()}`,
-          ...payload,
-          totalOrders: 0,
-          totalSpent: 0,
-          joinedDate: "আজকে",
-          avatarInitials: name.trim().slice(0, 2),
-        });
-
         fireAlert({
           type: "success",
           title: "গ্রাহক সংরক্ষিত!",

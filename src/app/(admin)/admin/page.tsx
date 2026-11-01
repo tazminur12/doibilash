@@ -30,61 +30,148 @@ import {
   Building2,
   Gift,
 } from "lucide-react";
-import { getStoredOrders, StoredOrder, STATUS_META } from "@/lib/orderStorage";
-import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
-import { getStoredCustomers, StoredCustomer } from "@/lib/customerStorage";
+import { StoredOrder, STATUS_META } from "@/lib/orderStorage";
+import { StoredProduct } from "@/lib/productStorage";
 import {
-  getStoredCorporateOrders,
   CorporateOrder,
   CORP_STATUS_META,
 } from "@/lib/corporateOrderStorage";
 import { toBnDigits } from "@/lib/bangla";
 
+type WeeklyDay = {
+  day: string;
+  full: string;
+  amount: number;
+  orders: number;
+  height: number;
+  isToday?: boolean;
+};
+
+type DashboardKpis = {
+  totalRevenue: number;
+  aov: number;
+  totalOrdersCount: number;
+  pendingOrProcessingOrders: number;
+  shippedOrders: number;
+  deliveredOrders: number;
+  cancelledOrders: number;
+  totalCustomersCount: number;
+  vipCustomersCount: number;
+  totalProductsCount: number;
+  inStockProducts: number;
+  categoryCount: number;
+  packageCount: number;
+  teamCount: number;
+  totalCorporatePipeline: number;
+  corporateInProduction: number;
+  corporateCount: number;
+};
+
+const EMPTY_KPIS: DashboardKpis = {
+  totalRevenue: 0,
+  aov: 0,
+  totalOrdersCount: 0,
+  pendingOrProcessingOrders: 0,
+  shippedOrders: 0,
+  deliveredOrders: 0,
+  cancelledOrders: 0,
+  totalCustomersCount: 0,
+  vipCustomersCount: 0,
+  totalProductsCount: 0,
+  inStockProducts: 0,
+  categoryCount: 0,
+  packageCount: 0,
+  teamCount: 0,
+  totalCorporatePipeline: 0,
+  corporateInProduction: 0,
+  corporateCount: 0,
+};
+
 export default function AdminDashboardPage() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [kpis, setKpis] = useState<DashboardKpis>(EMPTY_KPIS);
   const [orders, setOrders] = useState<StoredOrder[]>([]);
   const [products, setProducts] = useState<StoredProduct[]>([]);
-  const [customers, setCustomers] = useState<StoredCustomer[]>([]);
   const [corporateOrders, setCorporateOrders] = useState<CorporateOrder[]>([]);
+  const [weekDays, setWeekDays] = useState<WeeklyDay[]>([]);
+  const [weekTotal, setWeekTotal] = useState(0);
+  const [weekMin, setWeekMin] = useState(0);
+  const [weekMax, setWeekMax] = useState(0);
+
+  const loadDashboard = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/admin/dashboard");
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "ড্যাশবোর্ড লোড ব্যর্থ");
+      }
+      setKpis({ ...EMPTY_KPIS, ...(data.kpis || {}) });
+      setOrders(Array.isArray(data.recentOrders) ? data.recentOrders : []);
+      setProducts(Array.isArray(data.products) ? data.products : []);
+      setCorporateOrders(
+        Array.isArray(data.corporateOrders) ? data.corporateOrders : []
+      );
+      setWeekDays(Array.isArray(data.weekly?.days) ? data.weekly.days : []);
+      setWeekTotal(Number(data.weekly?.total) || 0);
+      setWeekMin(Number(data.weekly?.min) || 0);
+      setWeekMax(Number(data.weekly?.max) || 0);
+    } catch (err: unknown) {
+      setLoadError(err instanceof Error ? err.message : "নেটওয়ার্ক সমস্যা");
+      setKpis(EMPTY_KPIS);
+      setOrders([]);
+      setProducts([]);
+      setCorporateOrders([]);
+      setWeekDays([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setOrders(getStoredOrders());
-    setProducts(getStoredProducts());
-    setCustomers(getStoredCustomers());
-    setCorporateOrders(getStoredCorporateOrders());
+    loadDashboard();
   }, []);
 
-  // Aggregated KPIs
-  const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-  const totalCorporatePipeline = corporateOrders.reduce((sum, c) => sum + (c.totalBudget || 0), 0);
-  const corporateInProduction = corporateOrders.filter((c) => c.status === "In Production").length;
-  const totalOrdersCount = orders.length;
-  const pendingOrProcessingOrders = orders.filter(
-    (o) => o.status === "Pending" || o.status === "Processing"
-  ).length;
-  const deliveredOrders = orders.filter((o) => o.status === "Delivered").length;
-  const totalCustomersCount = customers.length;
-  const vipCustomersCount = customers.filter(
-    (c) => c.tier === "VIP" || c.tier === "Gold"
-  ).length;
-  const totalProductsCount = products.length;
-  const inStockProducts = products.filter((p) => p.stockStatus === "In Stock").length;
-
-  // Average Order Value (AOV)
-  const aov = totalOrdersCount > 0 ? Math.round(totalRevenue / totalOrdersCount) : 0;
-
-  // Weekly Activity Data (Mocked realistic curve with today highlighted)
-  const WEEK_DAYS = [
-    { day: "শনি", full: "শনিবার", amount: 18450, orders: 12, height: 60 },
-    { day: "রবি", full: "রবিবার", amount: 24200, orders: 15, height: 78 },
-    { day: "সোম", full: "সোমবার", amount: 16800, orders: 10, height: 52 },
-    { day: "মঙ্গল", full: "মঙ্গলবার", amount: 28900, orders: 19, height: 92 },
-    { day: "বুধ", full: "বুধবার", amount: 21500, orders: 14, height: 70 },
-    { day: "বৃহঃ", full: "বৃহস্পতিবার", amount: 31200, orders: 21, height: 98 },
-    { day: "শুক্র", full: "শুক্রবার (আজ)", amount: 26400, orders: 18, height: 85, isToday: true },
-  ];
+  const {
+    totalRevenue,
+    aov,
+    totalOrdersCount,
+    pendingOrProcessingOrders,
+    shippedOrders,
+    deliveredOrders,
+    totalCustomersCount,
+    vipCustomersCount,
+    totalProductsCount,
+    inStockProducts,
+    totalCorporatePipeline,
+    corporateInProduction,
+  } = kpis;
 
   return (
     <div className="space-y-8 font-bengali pb-24 max-w-7xl mx-auto">
+      {isLoading && (
+        <div className="rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-xs font-semibold text-amber-900 flex items-center gap-2">
+          <span className="w-3.5 h-3.5 border-2 border-[#C48A4E] border-t-transparent rounded-full animate-spin" />
+          লাইভ ড্যাশবোর্ড ডাটা সুপাবেস থেকে লোড হচ্ছে...
+        </div>
+      )}
+      {loadError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-semibold text-red-700 flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {loadError}
+          </span>
+          <button
+            type="button"
+            onClick={loadDashboard}
+            className="px-3 py-1.5 rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-100"
+          >
+            আবার চেষ্টা
+          </button>
+        </div>
+      )}
       {/* ── 1. Welcome & Store Pulse Banner ─────────────────────────────── */}
       <div className="bg-linear-to-r from-[#2A1413] via-[#351C1B] to-[#4A2624] rounded-3xl p-6 sm:p-8 text-amber-50 shadow-xl border border-amber-900/40 relative overflow-hidden">
         {/* Warm Ambient Glow Effects */}
@@ -176,9 +263,7 @@ export default function AdminDashboardPage() {
             ৳ {toBnDigits(totalRevenue.toLocaleString("en-IN"))}
           </div>
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-stone-100 text-xs">
-            <span className="text-emerald-700 font-bold flex items-center gap-1">
-              <span className="text-emerald-500">↑</span> +১৮.২% বৃদ্ধি
-            </span>
+            <span className="text-stone-500 font-medium">সুপাবেস লাইভ টোটাল</span>
             <span className="text-stone-400 font-medium">
               AOV: ৳ {toBnDigits(aov.toLocaleString("en-IN"))}
             </span>
@@ -272,25 +357,30 @@ export default function AdminDashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                মোট সপ্তাহ: ৳ {toBnDigits((167450).toLocaleString("en-IN"))}
+                মোট সপ্তাহ: ৳ {toBnDigits(weekTotal.toLocaleString("en-IN"))}
               </span>
             </div>
           </div>
 
-          {/* Visual CSS Bar Chart */}
+          {/* Visual CSS Bar Chart — live last 7 days */}
           <div className="pt-4">
             <div className="h-56 flex items-end justify-between gap-2 sm:gap-4 px-2 sm:px-4 border-b border-stone-200/60 pb-3">
-              {WEEK_DAYS.map((w, idx) => (
+              {(weekDays.length ? weekDays : Array.from({ length: 7 }, (_, i) => ({
+                day: ["শনি", "রবি", "সোম", "মঙ্গল", "বুধ", "বৃহঃ", "শুক্র"][i],
+                full: "",
+                amount: 0,
+                orders: 0,
+                height: 8,
+                isToday: i === 6,
+              }))).map((w, idx) => (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
-                  {/* Tooltip on Hover */}
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-[#351C1B] text-amber-100 text-[10px] font-bold py-1 px-2 rounded-lg pointer-events-none shadow-lg whitespace-nowrap mb-1">
                     ৳ {toBnDigits(w.amount.toLocaleString("en-IN"))} ({toBnDigits(w.orders)} অর্ডার)
                   </div>
 
-                  {/* Bar */}
-                  <div className="w-full max-w-[42px] bg-stone-100 rounded-t-xl overflow-hidden relative flex items-end justify-center">
+                  <div className="w-full max-w-[42px] h-full bg-stone-100 rounded-t-xl overflow-hidden relative flex items-end justify-center">
                     <div
-                      style={{ height: `${w.height}%` }}
+                      style={{ height: `${Math.max(w.height, 8)}%` }}
                       className={`w-full rounded-t-xl transition-all duration-500 ${
                         w.isToday
                           ? "bg-linear-to-t from-[#351C1B] via-[#4A2624] to-[#C48A4E] shadow-md shadow-[#C48A4E]/30"
@@ -299,7 +389,6 @@ export default function AdminDashboardPage() {
                     />
                   </div>
 
-                  {/* Day Label */}
                   <span
                     className={`text-xs font-bold mt-1 ${
                       w.isToday ? "text-[#C48A4E]" : "text-stone-500 group-hover:text-stone-800"
@@ -312,12 +401,12 @@ export default function AdminDashboardPage() {
             </div>
 
             <div className="flex items-center justify-between text-xs text-stone-400 pt-3 px-2">
-              <span>সর্বনিম্ন: ৳ {toBnDigits((16800).toLocaleString("en-IN"))}</span>
+              <span>সর্বনিম্ন: ৳ {toBnDigits(weekMin.toLocaleString("en-IN"))}</span>
               <span className="flex items-center gap-1.5 text-stone-600 font-semibold">
                 <span className="w-2.5 h-2.5 rounded-sm bg-linear-to-r from-[#351C1B] to-[#C48A4E]"></span>
                 <span>আজকের বিক্রয় ভলিউম</span>
               </span>
-              <span>সর্বোচ্চ: ৳ {toBnDigits((31200).toLocaleString("en-IN"))}</span>
+              <span>সর্বোচ্চ: ৳ {toBnDigits(weekMax.toLocaleString("en-IN"))}</span>
             </div>
           </div>
         </div>
@@ -349,7 +438,7 @@ export default function AdminDashboardPage() {
                   <div
                     className="h-full bg-emerald-500 rounded-full"
                     style={{
-                      width: `${totalOrdersCount > 0 ? (deliveredOrders / totalOrdersCount) * 100 : 60}%`,
+                      width: `${totalOrdersCount > 0 ? (deliveredOrders / totalOrdersCount) * 100 : 0}%`,
                     }}
                   />
                 </div>
@@ -367,7 +456,7 @@ export default function AdminDashboardPage() {
                   <div
                     className="h-full bg-blue-500 rounded-full"
                     style={{
-                      width: `${totalOrdersCount > 0 ? (pendingOrProcessingOrders / totalOrdersCount) * 100 : 30}%`,
+                      width: `${totalOrdersCount > 0 ? (pendingOrProcessingOrders / totalOrdersCount) * 100 : 0}%`,
                     }}
                   />
                 </div>
@@ -379,28 +468,33 @@ export default function AdminDashboardPage() {
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
                     <span>শিপমেন্টে আছে (Shipped)</span>
                   </span>
-                  <span>
-                    {toBnDigits(orders.filter((o) => o.status === "Shipped").length || 1)} টি
-                  </span>
+                  <span>{toBnDigits(shippedOrders)} টি</span>
                 </div>
                 <div className="h-2 w-full bg-stone-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full" style={{ width: "20%" }} />
+                  <div
+                    className="h-full bg-amber-500 rounded-full"
+                    style={{
+                      width: `${totalOrdersCount > 0 ? (shippedOrders / totalOrdersCount) * 100 : 0}%`,
+                    }}
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Customer Satisfaction Card */}
           <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-200/60 space-y-2 mt-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
-                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                <span>গ্রাহক সন্তুষ্টি হার</span>
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-700" />
+                <span>স্টোর সামারি</span>
               </span>
-              <span className="text-sm font-black text-amber-950">৯৮.৫%</span>
+              <span className="text-sm font-black text-amber-950">
+                {toBnDigits(kpis.categoryCount)} ক্যাটাগরি
+              </span>
             </div>
             <p className="text-[11px] text-amber-800/80 leading-relaxed">
-              বগুড়ার খাঁটি সরার দই এবং গাওয়া ঘিয়ের গুণগত মানে ৯৮% গ্রাহক ৫-স্টার রিভিউ দিয়েছেন।
+              প্যাকেজ {toBnDigits(kpis.packageCount)} • টিম {toBnDigits(kpis.teamCount)} •
+              VIP/গোল্ড {toBnDigits(vipCustomersCount)} — সব ডাটা সুপাবেস থেকে লাইভ।
             </p>
           </div>
         </div>
@@ -442,6 +536,13 @@ export default function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-stone-400 text-sm">
+                    এখনো কোনো অর্ডার নেই। ম্যানুয়াল অর্ডার তৈরি করুন অথবা স্টোর থেকে অর্ডার আসলে এখানে দেখাবে।
+                  </td>
+                </tr>
+              ) : null}
               {orders.slice(0, 5).map((order) => {
                 const statusMeta = STATUS_META[order.status] || STATUS_META.Pending;
                 return (
@@ -532,6 +633,11 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {products.length === 0 && (
+            <div className="sm:col-span-2 lg:col-span-4 py-10 text-center text-stone-400 text-sm rounded-2xl border border-dashed border-stone-200">
+              ক্যাটালগে এখনো পণ্য নেই। নতুন পণ্য যোগ করলে এখানে দেখাবে।
+            </div>
+          )}
           {products.slice(0, 4).map((prod) => (
             <div
               key={prod.id}
@@ -605,7 +711,7 @@ export default function AdminDashboardPage() {
               href="/admin/corporate"
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors"
             >
-              <span>সকল কোটেশন ({toBnDigits(corporateOrders.length)})</span>
+              <span>সকল কোটেশন ({toBnDigits(kpis.corporateCount)})</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -613,6 +719,11 @@ export default function AdminDashboardPage() {
 
         {/* Corporate Orders Mini Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {corporateOrders.length === 0 && (
+            <div className="md:col-span-3 py-8 text-center text-stone-400 text-sm rounded-2xl border border-dashed border-stone-200">
+              কর্পোরেট পাইপলাইন খালি। নতুন B2B কোটেশন তৈরি করুন।
+            </div>
+          )}
           {corporateOrders.slice(0, 3).map((corp) => {
             const cMeta = CORP_STATUS_META[corp.status] || CORP_STATUS_META["New Lead"];
             return (

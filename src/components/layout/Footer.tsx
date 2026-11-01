@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   BellRing,
 } from "lucide-react";
+import { DEFAULT_SETTINGS, type StoreSettings } from "@/lib/settingsStorage";
 
 const PAYMENT_LOGO_DIR = "/Payment%20Gateway_Bank-LOGO";
 
@@ -51,34 +52,27 @@ const PROMISES = [
   { icon: ShieldCheck, title: "নিরাপদ পেমেন্ট", text: "বিকাশ, নগদ ও কার্ড পেমেন্ট" },
 ];
 
-const CONTACT_ITEMS = [
-  { icon: MapPin, text: "বনানী, ঢাকা - ১২১৩, বাংলাদেশ" },
-  { icon: Phone, text: "01645-460095", href: "tel:+8801645460095", sans: true },
-  { icon: Mail, text: "support@doibilash.com", href: "mailto:support@doibilash.com", sans: true },
-];
+const FACEBOOK_ICON = (
+  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+    <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
+  </svg>
+);
 
-const SOCIALS = [
-  {
-    label: "Facebook",
-    href: "https://www.facebook.com/profile.php?id=61565074421968",
-    icon: (
-      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-        <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Instagram",
-    href: "https://www.instagram.com/doibilash",
-    icon: (
-      <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-      </svg>
-    ),
-  },
-];
+const INSTAGRAM_ICON = (
+  <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+    <rect width="20" height="20" x="2" y="2" rx="5" ry="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+  </svg>
+);
+
+function phoneTelHref(phone: string): string {
+  const digits = phone.replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) return `tel:${digits}`;
+  if (digits.startsWith("88")) return `tel:+${digits}`;
+  if (digits.startsWith("0")) return `tel:+88${digits}`;
+  return `tel:${digits}`;
+}
 
 function FooterHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -111,6 +105,25 @@ export default function Footer() {
   const pathname = usePathname();
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const data = await res.json();
+        if (!cancelled && data.ok && data.settings) {
+          setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
+        }
+      } catch {
+        /* defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isAdminRoute =
     pathname?.startsWith("/admin") ||
@@ -120,6 +133,36 @@ export default function Footer() {
     pathname === "/products" ||
     pathname === "/settings";
   if (isAdminRoute) return null;
+
+  const contactPhone = settings.hotline || settings.phone || DEFAULT_SETTINGS.phone;
+  const CONTACT_ITEMS = [
+    { icon: MapPin, text: settings.address || DEFAULT_SETTINGS.address },
+    {
+      icon: Phone,
+      text: contactPhone,
+      href: phoneTelHref(contactPhone),
+      sans: true,
+    },
+    {
+      icon: Mail,
+      text: settings.supportEmail || DEFAULT_SETTINGS.supportEmail,
+      href: `mailto:${settings.supportEmail || DEFAULT_SETTINGS.supportEmail}`,
+      sans: true,
+    },
+  ];
+
+  const SOCIALS = [
+    {
+      label: "Facebook",
+      href: settings.facebookUrl || DEFAULT_SETTINGS.facebookUrl,
+      icon: FACEBOOK_ICON,
+    },
+    {
+      label: "Instagram",
+      href: settings.instagramUrl || DEFAULT_SETTINGS.instagramUrl,
+      icon: INSTAGRAM_ICON,
+    },
+  ].filter((s) => Boolean(s.href));
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();

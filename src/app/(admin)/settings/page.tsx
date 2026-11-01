@@ -37,8 +37,6 @@ import {
 import {
   StoreSettings,
   DEFAULT_SETTINGS,
-  getStoreSettings,
-  saveStoreSettings,
 } from "@/lib/settingsStorage";
 import { toBnDigits } from "@/lib/bangla";
 
@@ -103,17 +101,12 @@ export default function AdminSettingsPage() {
         if (data.settings.logoUrl) {
           setLogoPreview(data.settings.logoUrl);
         }
-        saveStoreSettings(data.settings);
       } else {
-        const fallback = getStoreSettings();
-        setSettings(fallback);
-        if (fallback.logoUrl) setLogoPreview(fallback.logoUrl);
+        setSettings(DEFAULT_SETTINGS);
       }
     } catch (err) {
-      console.error("Failed to load settings from API, using fallback:", err);
-      const fallback = getStoreSettings();
-      setSettings(fallback);
-      if (fallback.logoUrl) setLogoPreview(fallback.logoUrl);
+      console.error("Failed to load settings from API:", err);
+      setSettings(DEFAULT_SETTINGS);
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +213,6 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      saveStoreSettings(data.settings);
       setSettings(data.settings);
       if (data.settings.logoUrl) setLogoPreview(data.settings.logoUrl);
 
@@ -255,7 +247,6 @@ export default function AdminSettingsPage() {
         if (res.ok && data.ok) {
           setSettings(DEFAULT_SETTINGS);
           setLogoPreview(DEFAULT_SETTINGS.logoUrl);
-          saveStoreSettings(DEFAULT_SETTINGS);
           fireAlert({
             type: "success",
             title: "ডিফল্ট রিসেট সম্পন্ন!",

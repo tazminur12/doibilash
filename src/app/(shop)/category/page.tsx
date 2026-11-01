@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ArrowUpRight, Sparkles, Store, ArrowRight } from "lucide-react";
 import { CATEGORY_LIST, CATEGORY_MAP } from "@/data/categories";
 import { getPublicCategories } from "@/lib/categoryService";
+import { getPublicProducts } from "@/lib/productService";
 import { toBnDigits } from "@/lib/bangla";
 
 export const dynamic = "force-dynamic";
@@ -17,17 +18,43 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function CategoryIndexPage() {
-  const dbCategories = await getPublicCategories().catch(() => []);
+  const [dbCategories, products] = await Promise.all([
+    getPublicCategories().catch(() => []),
+    getPublicProducts().catch(() => []),
+  ]);
+
+  const productsByCategory = products.reduce<Record<string, { count: number; min: number }>>(
+    (acc, p) => {
+      const key = p.category || "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = { count: 0, min: p.price };
+      acc[key].count += 1;
+      acc[key].min = Math.min(acc[key].min, p.price);
+      return acc;
+    },
+    {}
+  );
 
   const categories =
     dbCategories.length > 0
       ? dbCategories.map((c) => {
           const staticCat = CATEGORY_MAP[c.slug];
-          const productsCount = c.totalProducts || (staticCat ? staticCat.products.length : 0);
+          const live = productsByCategory[c.slug];
+          const slugMatches = (c.productSlugs || [])
+            .map((slug) => products.find((p) => p.slug === slug))
+            .filter(Boolean);
+          const productsCount =
+            live?.count ||
+            slugMatches.length ||
+            c.totalProducts ||
+            (staticCat ? staticCat.products.length : 0);
           const lowestPrice =
-            staticCat && staticCat.products.length > 0
-              ? Math.min(...staticCat.products.map((p) => p.numericPrice))
-              : 350;
+            live?.min ??
+            (slugMatches.length
+              ? Math.min(...slugMatches.map((p) => p!.price))
+              : staticCat && staticCat.products.length > 0
+                ? Math.min(...staticCat.products.map((p) => p.numericPrice))
+                : 350);
           return {
             slug: c.slug,
             name: c.nameBn,
@@ -42,16 +69,20 @@ export default async function CategoryIndexPage() {
             lowestPrice,
           };
         })
-      : CATEGORY_LIST.map((c) => ({
-          slug: c.slug,
-          name: c.name,
-          englishName: c.englishName,
-          subtitle: c.subtitle,
-          image: c.image,
-          highlights: c.highlights,
-          productsCount: c.products.length,
-          lowestPrice: Math.min(...c.products.map((p) => p.numericPrice)),
-        }));
+      : CATEGORY_LIST.map((c) => {
+          const live = productsByCategory[c.slug];
+          return {
+            slug: c.slug,
+            name: c.name,
+            englishName: c.englishName,
+            subtitle: c.subtitle,
+            image: c.image,
+            highlights: c.highlights,
+            productsCount: live?.count ?? c.products.length,
+            lowestPrice:
+              live?.min ?? Math.min(...c.products.map((p) => p.numericPrice)),
+          };
+        });
 
   const totalProducts = categories.reduce((sum, c) => sum + c.productsCount, 0);
 

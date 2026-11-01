@@ -8,6 +8,7 @@ export interface StoredProduct {
   originalPrice?: number;
   unit: string;
   stockStatus: "In Stock" | "Out of Stock";
+  stockQuantity?: number;
   image: string;
   galleryImages?: string[];
   description: string;
@@ -183,65 +184,3 @@ export const DEFAULT_PRODUCTS: StoredProduct[] = [
     createdAt: "2026-02-01",
   },
 ];
-
-const STORAGE_KEY = "doibilash_admin_products_v2";
-
-export function getStoredProducts(): StoredProduct[] {
-  if (typeof window === "undefined") {
-    return DEFAULT_PRODUCTS;
-  }
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PRODUCTS));
-      return DEFAULT_PRODUCTS;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return DEFAULT_PRODUCTS;
-  } catch {
-    return DEFAULT_PRODUCTS;
-  }
-}
-
-export function saveProduct(product: StoredProduct): StoredProduct[] {
-  const products = getStoredProducts();
-  const index = products.findIndex((p) => p.id === product.id || p.slug === product.slug);
-
-  let updated: StoredProduct[];
-  if (index >= 0) {
-    updated = [...products];
-    updated[index] = { ...product };
-  } else {
-    updated = [product, ...products];
-  }
-
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error("Failed to save product to localStorage", err);
-    }
-  }
-  return updated;
-}
-
-export function deleteProduct(id: string): StoredProduct[] {
-  const products = getStoredProducts();
-  const updated = products.filter((p) => p.id !== id);
-  if (typeof window !== "undefined") {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error("Failed to delete product from localStorage", err);
-    }
-  }
-  return updated;
-}
-
-export function getProductByIdOrSlug(identifier: string): StoredProduct | undefined {
-  const products = getStoredProducts();
-  return products.find((p) => p.id === identifier || p.slug === identifier);
-}
