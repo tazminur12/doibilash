@@ -65,32 +65,61 @@ export default function FlashDealSection() {
   const [deals, setDeals] = useState<FlashProduct[]>(FLASH_PRODUCTS);
 
   useEffect(() => {
-    const refresh = () => {
-      const stored = getStoredFlashDeals();
-      const active = stored.filter((d) => d.isActive !== false);
-      if (active.length > 0) {
-        const mapped: FlashProduct[] = active.slice(0, 3).map((d) => {
-          const discountPct = Math.round(((d.originalPrice - d.price) / d.originalPrice) * 100);
-          return {
-            id: d.id,
-            slug: d.slug,
-            title: d.title,
-            price: d.price,
-            originalPrice: d.originalPrice,
-            discount: `-${discountPct}%`,
-            image: d.image || "/Product/placeholder.svg",
-            stockLeft: Math.max(0, d.totalStock - d.soldCount),
-            stockTotal: d.totalStock,
-            unit: d.unit,
-          };
-        });
-        setDeals(mapped);
+    let isMounted = true;
+
+    const mapDeals = (active: any[]): FlashProduct[] => {
+      return active.slice(0, 3).map((d) => {
+        const discountPct = Math.round(((d.originalPrice - d.price) / d.originalPrice) * 100);
+        return {
+          id: d.id,
+          slug: d.slug,
+          title: d.title,
+          price: d.price,
+          originalPrice: d.originalPrice,
+          discount: `-${discountPct}%`,
+          image: d.image || "/Product/placeholder.svg",
+          stockLeft: Math.max(0, d.totalStock - d.soldCount),
+          stockTotal: d.totalStock,
+          unit: d.unit,
+        };
+      });
+    };
+
+    const fetchLiveDeals = async () => {
+      try {
+        const res = await fetch("/api/offers");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && json.flashDeals && isMounted) {
+            const active = json.flashDeals.filter((d: any) => d.isActive !== false);
+            if (active.length > 0) {
+              setDeals(mapDeals(active));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("FlashDealSection live fetch error:", err);
       }
     };
-    refresh();
+
+    // Load from cache first
+    const stored = getStoredFlashDeals();
+    const activeStored = stored.filter((d) => d.isActive !== false);
+    if (activeStored.length > 0) {
+      setDeals(mapDeals(activeStored));
+    }
+
+    // Refresh from live API
+    fetchLiveDeals();
+
+    const refresh = () => {
+      fetchLiveDeals();
+    };
+
     window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
     window.addEventListener("storage", refresh);
     return () => {
+      isMounted = false;
       window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };

@@ -44,7 +44,16 @@ function SidebarHeading({ children }: { children: React.ReactNode }) {
 }
 
 export default function CategoryView({ slug }: { slug: string }) {
-  const category = CATEGORY_MAP[slug];
+  const category = CATEGORY_MAP[slug] || {
+    slug,
+    name: "ক্যাটাগরি",
+    englishName: "Category",
+    subtitle: "ঐতিহ্যবাহী সেরা মানের পণ্য সম্ভার",
+    image: "/Product/doi.jpg",
+    highlights: ["খাঁটি উপাদান", "প্রিজারভেটিভমুক্ত"],
+    tags: [ALL_TAG],
+    products: [],
+  };
   const bounds = useMemo(() => categoryPriceBounds(category), [category]);
 
   const [selectedTag, setSelectedTag] = useState<string>(ALL_TAG);
@@ -86,7 +95,10 @@ export default function CategoryView({ slug }: { slug: string }) {
       });
   }, [category.products, selectedTag, minPrice, maxPrice, sortBy]);
 
-  const lowestPrice = Math.min(...category.products.map((p) => p.numericPrice));
+  const lowestPrice =
+    category.products.length > 0
+      ? Math.min(...category.products.map((p) => p.numericPrice))
+      : 0;
 
   const categoryLinks = (
     <div className="space-y-1.5">

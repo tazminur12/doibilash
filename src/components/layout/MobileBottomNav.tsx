@@ -1,14 +1,40 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Home, Store, ShoppingBag, User } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import {
+  getCurrentUser,
+  syncCurrentUserWithServer,
+  AUTH_CHANGED_EVENT,
+  UserSession,
+} from "@/lib/authStorage";
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { openCart, totalCount } = useCart();
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) setCurrentUser(user);
+
+    syncCurrentUserWithServer().then((u) => {
+      if (u) setCurrentUser(u);
+    });
+
+    const handleAuthChange = (e: Event) => {
+      const customEvent = e as CustomEvent<UserSession | null>;
+      setCurrentUser(customEvent.detail);
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    };
+  }, []);
 
   const isAdminRoute =
     pathname?.startsWith("/admin") ||
@@ -22,7 +48,10 @@ export default function MobileBottomNav() {
   const isHomeActive = pathname === "/";
   const isShopActive =
     pathname.startsWith("/shop") || pathname.startsWith("/products");
-  const isProfileActive = pathname.startsWith("/profile");
+  const isProfileActive =
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register");
 
   return (
     <nav
@@ -80,18 +109,34 @@ export default function MobileBottomNav() {
           </span>
         </button>
 
-        {/* 4. Profile */}
+        {/* 4. Profile / Login */}
         <Link
-          href="/profile"
+          href={currentUser ? "/profile" : "/login"}
           className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 transition-colors ${
             isProfileActive
               ? "text-doibrand-gold font-semibold"
               : "text-gray-400 hover:text-doibrand-dark"
           }`}
         >
-          <User className="w-5 h-5" />
+          {currentUser?.avatarUrl ? (
+            <div className="relative w-5 h-5 rounded-full overflow-hidden ring-1 ring-doibrand-gold shrink-0">
+              <Image
+                src={currentUser.avatarUrl}
+                alt={currentUser.name}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          ) : currentUser ? (
+            <div className="w-5 h-5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-black text-[10px] flex items-center justify-center shrink-0">
+              {Array.from(currentUser.name)[0] || "U"}
+            </div>
+          ) : (
+            <User className="w-5 h-5" />
+          )}
           <span className="text-[10px] font-medium font-bengali">
-            প্রোফাইল
+            {currentUser ? "প্রোফাইল" : "লগইন"}
           </span>
         </Link>
       </div>

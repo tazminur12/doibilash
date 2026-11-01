@@ -32,9 +32,20 @@ import {
   BadgePercent,
   EyeOff,
   Package,
+  Camera,
+  Loader2,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { toBnDigits } from "@/lib/bangla";
-import { getCurrentUser, clearCurrentUser } from "@/lib/authStorage";
+import {
+  getCurrentUser,
+  clearCurrentUser,
+  setCurrentUser,
+  syncCurrentUserWithServer,
+  authFetch,
+  setAuthToken,
+} from "@/lib/authStorage";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -334,49 +345,155 @@ export default function ProfileDashboard() {
   const [editingAddressKey, setEditingAddressKey] = useState<AddressKey | null>(null);
   const [tempAddress, setTempAddress] = useState<AddressData | null>(null);
 
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+
   const [profileData, setProfileData] = useState({
-    name: "রহিম উদ্দিন",
-    email: "rahim.uddin@example.com",
-    phone: "+880 1712-345678",
+    name: "সম্মানিত গ্রাহক",
+    email: "customer@doibilash.com",
+    phone: "017XXXXXXXX",
+  });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const initialProfileRef = React.useRef({ name: "", email: "", phone: "" });
+
+  // Sweet Alert Modal State
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning";
+    title: string;
+    message: string;
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+    confirmButtonText: "ঠিক আছে",
   });
 
+  const fireAlert = (options: {
+    type?: "success" | "error" | "warning";
+    title?: string;
+    message: string;
+    confirmButtonText?: string;
+  }) => {
+    setSweetAlert({
+      isOpen: true,
+      type: options.type || "success",
+      title: options.title || (options.type === "error" ? "দুঃখিত!" : "সফল হয়েছে!"),
+      message: options.message,
+      confirmButtonText: options.confirmButtonText || "ঠিক আছে",
+    });
+  };
+
   useEffect(() => {
-    const user = getCurrentUser();
-    if (user) {
-      setProfileData({
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-      });
-      if (user.address) {
-        setAddresses((prev) => ({
-          ...prev,
-          shipping: {
-            ...prev.shipping,
-            name: user.name,
-            phone: user.phone,
-            fullAddress: user.address || prev.shipping.fullAddress,
-            city: user.city || prev.shipping.city,
-          },
-        }));
-      }
+    if (!sweetAlert.isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sweetAlert.isOpen]);
+
+  // Helper to populate user and address states
+  const applyUserToState = (user: any) => {
+    if (!user) return;
+    const name = user.name || "সম্মানিত গ্রাহক";
+    const email = user.email || `${user.phone}@customer.doibilash.com`;
+    const phone = user.phone || "";
+    setProfileData({ name, email, phone });
+    initialProfileRef.current = { name, email, phone };
+    if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
+
+    if (user.shippingAddress && typeof user.shippingAddress === "object" && user.shippingAddress.fullAddress) {
+      setAddresses((prev) => ({
+        ...prev,
+        shipping: user.shippingAddress,
+      }));
+    } else if (user.address || user.name) {
+      setAddresses((prev) => ({
+        ...prev,
+        shipping: {
+          title: "শিপিং ঠিকানা",
+          name: user.name || prev.shipping.name,
+          phone: user.phone || prev.shipping.phone,
+          fullAddress: user.address || prev.shipping.fullAddress,
+          city: user.city || prev.shipping.city,
+        },
+      }));
     }
-  }, []);
+
+    if (user.billingAddress && typeof user.billingAddress === "object" && user.billingAddress.fullAddress) {
+      setAddresses((prev) => ({
+        ...prev,
+        billing: user.billingAddress,
+      }));
+    } else if (user.address || user.name) {
+      setAddresses((prev) => ({
+        ...prev,
+        billing: {
+          title: "বিলিং ঠিকানা",
+          name: user.name || prev.billing.name,
+          phone: user.phone || prev.billing.phone,
+          fullAddress: user.address || prev.billing.fullAddress,
+          city: user.city || prev.billing.city,
+        },
+      }));
+    }
+  };
+
+  const loadOrders = () => {
+    authFetch("/api/user/orders")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok && Array.isArray(data.orders)) {
+          setOrders(data.orders);
+        }
+      })
+      .catch((err) => console.error("Failed to load user orders from Supabase", err))
+      .finally(() => setIsLoadingOrders(false));
+  };
+
+  useEffect(() => {
+    // 1. Initial cached user
+    const cached = getCurrentUser();
+    if (!cached) {
+      syncCurrentUserWithServer().then((user) => {
+        if (!user) {
+          router.push("/login?redirect=/profile");
+        } else {
+          applyUserToState(user);
+          loadOrders();
+        }
+      });
+      return;
+    }
+
+    applyUserToState(cached);
+    syncCurrentUserWithServer().then((user) => {
+      if (user) applyUserToState(user);
+    });
+    loadOrders();
+  }, [router]);
+
   const [passwordData, setPasswordData] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [passwordError, setPasswordError] = useState("");
 
   const stats = {
-    total: DUMMY_ORDERS.length,
-    active: DUMMY_ORDERS.filter((o) => o.status !== "Delivered").length,
-    delivered: DUMMY_ORDERS.filter((o) => o.status === "Delivered").length,
-    spent: DUMMY_ORDERS.reduce((sum, o) => sum + orderTotal(o), 0),
+    total: orders.length,
+    active: orders.filter((o) => o.status !== "Delivered").length,
+    delivered: orders.filter((o) => o.status === "Delivered").length,
+    spent: orders.reduce((sum, o) => sum + orderTotal(o), 0),
   };
 
   const filterCount = (value: "all" | OrderStatus) =>
-    value === "all" ? DUMMY_ORDERS.length : DUMMY_ORDERS.filter((o) => o.status === value).length;
+    value === "all" ? orders.length : orders.filter((o) => o.status === value).length;
 
-  const filteredOrders = DUMMY_ORDERS.filter((o) => orderFilter === "all" || o.status === orderFilter);
-  const latestOrder = DUMMY_ORDERS[0];
+  const filteredOrders = orders.filter((o) => orderFilter === "all" || o.status === orderFilter);
+  const latestOrder = orders[0];
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -388,32 +505,382 @@ export default function ProfileDashboard() {
     setTempAddress(null);
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingAddressKey && tempAddress) {
-      setAddresses((prev) => ({ ...prev, [editingAddressKey]: tempAddress }));
-      closeAddressModal();
-      showToast("ঠিকানা সফলভাবে সংরক্ষণ করা হয়েছে!");
+  const handleRemoveAvatar = async () => {
+    setIsUploadingAvatar(true);
+    try {
+      const res = await authFetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ avatarUrl: null }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAvatarUrl(null);
+        const cached = getCurrentUser();
+        if (cached) setCurrentUser({ ...cached, avatarUrl: null });
+        fireAlert({
+          type: "success",
+          title: "মুছে ফেলা হয়েছে!",
+          message: "আপনার প্রোফাইল ছবি সফলভাবে মুছে ফেলা হয়েছে।",
+        });
+      } else {
+        fireAlert({
+          type: "error",
+          title: "ব্যর্থ হয়েছে",
+          message: data.error || "ছবি মুছতে সমস্যা হয়েছে।",
+        });
+      }
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "সমস্যা হয়েছে",
+        message: "ছবি মুছতে নেটওয়ার্ক সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+      });
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      fireAlert({
+        type: "warning",
+        title: "সঠিক ফাইল দিন",
+        message: "দয়া করে শুধুমাত্র ছবি ফাইল (JPG, PNG, WebP) নির্বাচন করুন।",
+      });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      fireAlert({
+        type: "warning",
+        title: "ফাইলের সাইজ বড়",
+        message: "ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইট হতে পারবে।",
+      });
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await authFetch("/api/upload/avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setAvatarUrl(json.url);
+        const user = getCurrentUser();
+        if (user) {
+          setCurrentUser({ ...user, avatarUrl: json.url });
+        }
+        fireAlert({
+          type: "success",
+          title: "সফল হয়েছে!",
+          message: "আপনার প্রোফাইল ছবি সফলভাবে সম্পূর্ণ করা হয়েছে।",
+        });
+      } else {
+        fireAlert({
+          type: "error",
+          title: "আপলোড ব্যর্থ",
+          message: json.error || "ছবি আপলোড সম্পন্ন করা সম্ভব হয়নি।",
+        });
+      }
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক সমস্যা",
+        message: "ছবি আপলোড করার সময় নেটওয়ার্ক সমস্যা হয়েছে।",
+      });
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingAddressKey && tempAddress) {
+      const label = editingAddressKey === "shipping" ? "শিপিং ঠিকানা" : "বিলিং ঠিকানা";
+      setAddresses((prev) => ({ ...prev, [editingAddressKey]: tempAddress }));
+
+      try {
+        const payload: Record<string, unknown> = {};
+        if (editingAddressKey === "shipping") {
+          payload.shippingAddress = tempAddress;
+          payload.address = tempAddress.fullAddress;
+          payload.city = tempAddress.city;
+        } else {
+          payload.billingAddress = tempAddress;
+        }
+
+        const res = await authFetch("/api/auth/me", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (data.token) {
+          setAuthToken(data.token);
+        }
+
+        const user = getCurrentUser();
+        if (user && editingAddressKey === "shipping") {
+          setCurrentUser({
+            ...user,
+            address: tempAddress.fullAddress,
+            city: tempAddress.city,
+          });
+        }
+
+        closeAddressModal();
+        fireAlert({
+          type: "success",
+          title: "সফল হয়েছে!",
+          message: `আপনার ${label} সফলভাবে সম্পূর্ণ করা হয়েছে।`,
+        });
+      } catch (err) {
+        console.error("Failed to sync address with Supabase", err);
+        closeAddressModal();
+        fireAlert({
+          type: "error",
+          title: "ব্যর্থ হয়েছে",
+          message: `${label} সংরক্ষণ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।`,
+        });
+      }
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const { currentPassword, newPassword, confirmPassword } = passwordData;
     if (newPassword || confirmPassword) {
-      if (!currentPassword) return setPasswordError("বর্তমান পাসওয়ার্ড দিন।");
-      if (newPassword.length < 6) return setPasswordError("নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
-      if (newPassword !== confirmPassword) return setPasswordError("নতুন পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মিলছে না।");
+      if (!currentPassword) {
+        setPasswordError("বর্তমান পাসওয়ার্ড দিন।");
+        fireAlert({
+          type: "warning",
+          title: "পাসওয়ার্ড দিন",
+          message: "পাসওয়ার্ড পরিবর্তন করতে হলে বর্তমান পাসওয়ার্ডটি প্রদান করুন।",
+        });
+        return;
+      }
+      if (newPassword.length < 6) {
+        setPasswordError("নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।");
+        fireAlert({
+          type: "warning",
+          title: "পাসওয়ার্ড ছোট",
+          message: "নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।",
+        });
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setPasswordError("নতুন পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মিলছে না।");
+        fireAlert({
+          type: "warning",
+          title: "পাসওয়ার্ড মিলছে না",
+          message: "নতুন পাসওয়ার্ড এবং নিশ্চিতকরণ পাসওয়ার্ড মিলছে না।",
+        });
+        return;
+      }
     }
     setPasswordError("");
-    setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-    showToast("প্রোফাইল তথ্য সফলভাবে আপডেট করা হয়েছে!");
+    setIsSavingSettings(true);
+
+    // Track which fields were modified compared to initial state
+    const prevName = (initialProfileRef.current.name || "").trim();
+    const prevPhone = (initialProfileRef.current.phone || "").trim().replace(/[\s-]/g, "");
+    const prevEmail = (initialProfileRef.current.email || "").trim().toLowerCase();
+
+    const currName = profileData.name.trim();
+    const currPhone = profileData.phone.trim().replace(/[\s-]/g, "");
+    const currEmail = profileData.email.trim().toLowerCase();
+
+    const nameChanged = Boolean(currName && currName !== prevName);
+    const phoneChanged = Boolean(currPhone && currPhone !== prevPhone);
+    const emailChanged = Boolean(currEmail && currEmail !== prevEmail);
+    const passwordChanged = Boolean(newPassword);
+
+    // Build specific Bengali message according to user request
+    let successMessage = "আপনার অ্যাকাউন্ট সেটিংস সফলভাবে সম্পূর্ণ করা হয়েছে।";
+
+    const changedList: string[] = [];
+    if (phoneChanged) changedList.push("ফোন নম্বর");
+    if (nameChanged) changedList.push("নাম");
+    if (emailChanged) changedList.push("ইমেইল");
+
+    if (changedList.length === 1) {
+      if (phoneChanged) {
+        successMessage = "আপনার ফোন নম্বর সফলভাবে সম্পূর্ণ করা হয়েছে।";
+      } else if (nameChanged) {
+        successMessage = "আপনার নাম সফলভাবে সম্পূর্ণ করা হয়েছে।";
+      } else if (emailChanged) {
+        successMessage = "আপনার ইমেইল সফলভাবে সম্পূর্ণ করা হয়েছে।";
+      }
+    } else if (changedList.length === 2) {
+      successMessage = `আপনার ${changedList[0]} ও ${changedList[1]} সফলভাবে সম্পূর্ণ করা হয়েছে।`;
+    } else if (changedList.length === 3) {
+      successMessage = "আপনার নাম, ফোন নম্বর ও ইমেইল সফলভাবে সম্পূর্ণ করা হয়েছে।";
+    }
+
+    if (passwordChanged) {
+      if (changedList.length > 0) {
+        successMessage = `আপনার ${changedList.join(", ")} ও পাসওয়ার্ড সফলভাবে সম্পূর্ণ করা হয়েছে।`;
+      } else {
+        successMessage = "আপনার পাসওয়ার্ড সফলভাবে সম্পূর্ণ করা হয়েছে।";
+      }
+    }
+
+    try {
+      // 1. Update basic info in Supabase
+      const res = await authFetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.phone,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        fireAlert({
+          type: "error",
+          title: "ব্যর্থ হয়েছে",
+          message: data.error || "প্রোফাইল তথ্য আপডেট করতে সমস্যা হয়েছে।",
+        });
+        setIsSavingSettings(false);
+        return;
+      }
+
+      if (data.token) {
+        setAuthToken(data.token);
+      }
+      setCurrentUser(data.user);
+      initialProfileRef.current = {
+        name: profileData.name,
+        email: profileData.email,
+        phone: profileData.phone,
+      };
+
+      // 2. Change password if filled
+      if (newPassword) {
+        const passRes = await authFetch("/api/auth/password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        const passData = await passRes.json();
+        if (!passRes.ok || !passData.ok) {
+          setPasswordError(passData.error || "পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে");
+          fireAlert({
+            type: "error",
+            title: "পাসওয়ার্ড ত্রুটি",
+            message: passData.error || "পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে।",
+          });
+          setIsSavingSettings(false);
+          return;
+        }
+        setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      }
+
+      fireAlert({
+        type: "success",
+        title: "সফল হয়েছে!",
+        message: successMessage,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক ত্রুটি",
+        message: "সার্ভারে সংযোগ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+      });
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const initial = Array.from(profileData.name)[0] ?? "U";
 
   return (
     <main className="min-h-screen bg-doibrand-light text-doibrand-dark font-bengali">
+      {/* Sweet Alert Pop-up Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          {/* Backdrop with blur */}
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          {/* Sweet Alert Card */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            {/* Top Close Button */}
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Icon */}
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            {/* Title */}
+            <h3
+              id="sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-doibrand-dark tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            {/* Message */}
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            {/* Confirm Button */}
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-doibrand-accent to-doibrand-gold py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-doibrand-accent/25 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className="fixed top-28 right-4 left-4 sm:left-auto z-[80] sm:w-96 animate-header-fade-up">
@@ -447,11 +914,40 @@ export default function ProfileDashboard() {
 
           <div className="relative mt-5 flex flex-col lg:flex-row lg:items-center gap-6">
             <div className="flex items-center gap-4 flex-1 min-w-0">
-              <span className="relative shrink-0 rounded-full p-[3px] bg-linear-to-br from-[#E9C893] via-doibrand-gold to-doibrand-accent shadow-[0_12px_24px_-12px_rgba(169,94,53,0.8)]">
-                <span className="w-16 h-16 sm:w-20 sm:h-20 grid place-items-center rounded-full bg-white text-2xl sm:text-3xl font-extrabold text-doibrand-accent">
-                  {initial}
+              <span className="relative shrink-0 rounded-full p-[3px] bg-linear-to-br from-[#E9C893] via-doibrand-gold to-doibrand-accent shadow-[0_12px_24px_-12px_rgba(169,94,53,0.8)] group">
+                <span className="w-16 h-16 sm:w-20 sm:h-20 grid place-items-center rounded-full bg-white text-2xl sm:text-3xl font-extrabold text-doibrand-accent overflow-hidden relative">
+                  {avatarUrl ? (
+                    <Image
+                      src={avatarUrl}
+                      alt={profileData.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    initial
+                  )}
+                  {isUploadingAvatar && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white z-10">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                  )}
                 </span>
-                <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white" title="Active" />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="ক্লাউডিনারিতে ছবি পরিবর্তন করুন"
+                  className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-[#351C1B] text-[#C48A4E] hover:text-white hover:bg-black ring-2 ring-white flex items-center justify-center transition shadow-md cursor-pointer z-20"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarFileChange}
+                />
               </span>
               <div className="min-w-0">
                 <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-doibrand-accent to-doibrand-gold px-2.5 py-0.5 text-[10px] font-bold text-white">
@@ -520,7 +1016,7 @@ export default function ProfileDashboard() {
                           active ? "bg-white/25 text-white" : "bg-stone-100 text-stone-500"
                         }`}
                       >
-                        {toBnDigits(DUMMY_ORDERS.length)}
+                        {toBnDigits(orders.length)}
                       </span>
                     )}
                   </button>
@@ -583,7 +1079,12 @@ export default function ProfileDashboard() {
               </div>
 
               {/* Latest Order */}
-              {latestOrder && (
+              {isLoadingOrders ? (
+                <div className={`${cardClass} p-8 text-center flex items-center justify-center gap-2 text-stone-500`}>
+                  <Loader2 className="w-5 h-5 text-doibrand-accent animate-spin" />
+                  <span className="text-xs font-semibold">সর্বশেষ অর্ডার লোড হচ্ছে...</span>
+                </div>
+              ) : latestOrder ? (
                 <div className={`${cardClass} p-5 sm:p-6`}>
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -633,7 +1134,7 @@ export default function ProfileDashboard() {
                     </Link>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Quick Actions */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -707,7 +1208,12 @@ export default function ProfileDashboard() {
                 })}
               </div>
 
-              {filteredOrders.length > 0 ? (
+              {isLoadingOrders ? (
+                <div className={`${cardClass} p-12 text-center flex flex-col items-center justify-center gap-3`}>
+                  <Loader2 className="w-8 h-8 text-doibrand-accent animate-spin" />
+                  <p className="text-sm font-semibold text-stone-600">ডাটাবেজ থেকে আপনার অর্ডারসমূহ লোড করা হচ্ছে...</p>
+                </div>
+              ) : filteredOrders.length > 0 ? (
                 <div className="space-y-4">
                   {filteredOrders.map((order) => (
                     <article key={order.id} className={`${cardClass} p-5 transition hover:ring-doibrand-gold/40`}>
@@ -854,6 +1360,61 @@ export default function ProfileDashboard() {
                   </span>
                   ব্যক্তিগত তথ্য
                 </h3>
+
+                {/* Cloudinary Profile Photo Section */}
+                <div className="mb-6 p-4 rounded-2xl bg-[#FFF9F1] border border-amber-900/10 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-14 h-14 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-accent p-0.5 shrink-0 shadow-sm">
+                      <div className="w-full h-full rounded-full bg-white overflow-hidden relative flex items-center justify-center font-black text-doibrand-accent text-lg">
+                        {avatarUrl ? (
+                          <Image
+                            src={avatarUrl}
+                            alt={profileData.name}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          initial
+                        )}
+                        {isUploadingAvatar && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-doibrand-dark">প্রোফাইল ছবি</p>
+                      <p className="text-[11px] text-stone-500">Cloudinary সিডিএন-এ হাই-রেজ্যুলেশনে সংরক্ষিত</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        disabled={isUploadingAvatar}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition active:scale-95 cursor-pointer disabled:opacity-60"
+                        title="প্রোফাইল ছবি ডিলিট করুন"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>ছবি মুছুন</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-stone-200 hover:border-doibrand-gold text-xs font-bold text-doibrand-dark hover:text-doibrand-accent shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-60"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{isUploadingAvatar ? "আপলোড হচ্ছে..." : "নতুন ছবি দিন"}</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <label className="block">
                     <span className="mb-1.5 block text-xs font-semibold">পুরো নাম *</span>
@@ -931,10 +1492,20 @@ export default function ProfileDashboard() {
                 <button
                   type="submit"
                   id="btn-save-settings"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-doibrand-accent to-doibrand-gold px-8 py-3.5 text-sm font-bold text-white shadow-[0_14px_28px_-14px_rgba(169,94,53,0.95)] hover:brightness-110 transition cursor-pointer"
+                  disabled={isSavingSettings}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-doibrand-accent to-doibrand-gold px-8 py-3.5 text-sm font-bold text-white shadow-[0_14px_28px_-14px_rgba(169,94,53,0.95)] hover:brightness-110 transition cursor-pointer disabled:opacity-60"
                 >
-                  <Check className="w-4 h-4" />
-                  সেভ করুন
+                  {isSavingSettings ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>সংরক্ষণ হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>সেভ করুন</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

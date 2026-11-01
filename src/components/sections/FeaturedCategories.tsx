@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Sparkles, ArrowUpRight, ChevronRight } from "lucide-react";
+import { toBnDigits } from "@/lib/bangla";
 
 interface Category {
   id: string;
@@ -23,7 +24,7 @@ const FEATURED_CATEGORIES: Category[] = [
     englishName: "Premium Doi",
     subtitle: "বগুড়ার মাটির সরার দই",
     href: "/category/premium-doi",
-    image: "/Product/doi.jpg",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
     badge: "হট ফেভারিট",
     itemCount: "৮+ আইটেম",
   },
@@ -33,8 +34,7 @@ const FEATURED_CATEGORIES: Category[] = [
     englishName: "Shahi Laddu",
     subtitle: "খাঁটি ঘিয়ে ভাজা মতিচুর",
     href: "/category/laddu",
-    image:
-      "/Product/placeholder.svg",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png",
     badge: "বেস্ট সেলার",
     itemCount: "৮+ আইটেম",
   },
@@ -44,7 +44,7 @@ const FEATURED_CATEGORIES: Category[] = [
     englishName: "Laccha Semai",
     subtitle: "ঘিয়ে ভাজা শাহী লাচ্ছা",
     href: "/category/laccha-semai",
-    image: "/Product/laccha_semai.jpg",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg",
     badge: "উৎসব স্পেশাল",
     itemCount: "৮+ আইটেম",
   },
@@ -53,31 +53,18 @@ const FEATURED_CATEGORIES: Category[] = [
     name: "দানাদার গাওয়া ঘি",
     englishName: "Pure Ghee",
     subtitle: "গাভীর দুধের খাঁটি ননী",
-    href: "/shop",
-    image:
-      "/Product/placeholder.svg",
+    href: "/category/pure-ghee",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
     badge: "১০০% খাঁটি",
     itemCount: "৫+ আইটেম",
-  },
-  {
-    id: "honey",
-    name: "প্রাকৃতিক মধু",
-    englishName: "Raw Honey",
-    subtitle: "সুন্দরবনের চাকের মধু",
-    href: "/shop",
-    image:
-      "/Product/placeholder.svg",
-    badge: "ন্যাচারাল",
-    itemCount: "৬+ আইটেম",
   },
   {
     id: "sweets",
     name: "ঐতিহ্যবাহী মিষ্টি",
     englishName: "Traditional Sweets",
     subtitle: "রসগোল্লা, চমচম ও সন্দেশ",
-    href: "/shop",
-    image:
-      "/Product/placeholder.svg",
+    href: "/category/traditional-sweets",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/mango_doi.jpg",
     badge: "টাটকা স্বাদ",
     itemCount: "১১+ আইটেম",
   },
@@ -109,6 +96,40 @@ function CategoryImage({ cat }: { cat: Category }) {
 }
 
 export default function FeaturedCategories() {
+  const [categories, setCategories] = useState<Category[]>(FEATURED_CATEGORIES);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadCategories() {
+      try {
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && Array.isArray(json.categories) && json.categories.length > 0 && isMounted) {
+            const mapped: Category[] = json.categories.map((c: any) => ({
+              id: c.slug || c.id,
+              name: c.nameBn || c.name,
+              englishName: c.name || "",
+              subtitle: c.subtitle || "ঐতিহ্যবাহী সেরা মানের সম্ভার",
+              href: `/category/${c.slug}`,
+              image: c.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+              badge: c.isFeatured ? "হট ফেভারিট" : "স্পেশাল",
+              itemCount: `${toBnDigits(c.totalProducts || c.productSlugs?.length || 0)}+ আইটেম`,
+            }));
+            setCategories(mapped);
+          }
+        }
+      } catch (err) {
+        // Fallback to initial FEATURED_CATEGORIES
+      }
+    }
+
+    loadCategories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <section className="w-full font-bengali py-4 pb-12 md:pb-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -131,7 +152,7 @@ export default function FeaturedCategories() {
           </div>
 
           <Link
-            href="/shop"
+            href="/category"
             className="group hidden sm:inline-flex shrink-0 items-center gap-1.5 rounded-full border border-doibrand-gold/30 bg-white/70 px-4 py-2 text-sm font-semibold text-doibrand-accent hover:bg-doibrand-dark hover:text-doibrand-light hover:border-doibrand-dark transition-all"
           >
             সকল ক্যাটাগরি
@@ -141,7 +162,7 @@ export default function FeaturedCategories() {
 
         {/* Categories: swipe on mobile, grid on larger screens */}
         <div className="-mx-4 px-4 sm:mx-0 sm:px-0 flex sm:grid sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4 lg:gap-5 overflow-x-auto sm:overflow-visible snap-x snap-mandatory hide-scrollbar pt-1 pb-3 sm:pb-0">
-          {FEATURED_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <Link
               key={cat.id}
               href={cat.href}

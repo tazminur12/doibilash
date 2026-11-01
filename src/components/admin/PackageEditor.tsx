@@ -25,6 +25,8 @@ import {
   Tag,
   Star,
   Package,
+  Loader2,
+  Upload,
 } from "lucide-react";
 import {
   StoredPackage,
@@ -40,9 +42,18 @@ import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_IMAGES = [
-  { label: "দই ও লাড্ডু হ্যাম্পার", url: "/Product/doi.jpg" },
-  { label: "ফেস্টিভ্যাল সেমাই বক্স", url: "/Product/laccha_semai.jpg" },
-  { label: "রয়্যাল কাপ দই গিফট", url: "/Product/mini_doi.png" },
+  {
+    label: "দই ও লাড্ডু হ্যাম্পার",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+  },
+  {
+    label: "ফেস্টিভ্যাল সেমাই বক্স",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg",
+  },
+  {
+    label: "রয়্যাল কাপ দই গিফট",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png",
+  },
 ];
 
 const PACKAGING_TYPES = [
@@ -84,7 +95,21 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
   const [productsCatalogue, setProductsCatalogue] = useState<StoredProduct[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "warning";
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "success",
+  });
 
   // Discount Percentage Calculation
   const discountPercent =
@@ -110,49 +135,126 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
     setProductsCatalogue(getStoredProducts());
 
     if (idFromParam) {
-      const existing = getPackageById(idFromParam);
-      if (existing) {
-        setEditingId(existing.id);
-        setTitle(existing.title);
-        setSubtitle(existing.subtitle);
-        setOccasion(existing.occasion);
-        setPackagingType(existing.packagingType);
-        setPrice(existing.price);
-        setOriginalPrice(existing.originalPrice || existing.price);
-        setBadge(existing.badge || "উৎসব স্পেশাল");
-        setImage(existing.image || "/Product/doi.jpg");
-        setAvailableStock(existing.availableStock || 50);
-        setIsFeatured(existing.isFeatured ?? true);
-        setStatus(existing.status || "Active");
-        setCustomGreetingAllowed(existing.customGreetingAllowed ?? true);
-        if (existing.components && existing.components.length > 0) {
-          setComponents(existing.components);
-        } else if (existing.features && existing.features.length > 0) {
-          setComponents(existing.features.map((f) => ({ name: f, quantity: "১টি" })));
+      const fetchPackage = async () => {
+        try {
+          const res = await fetch(`/api/admin/packages/${idFromParam}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok && data.package) {
+              const p = data.package;
+              setEditingId(p.id);
+              setTitle(p.title);
+              setSubtitle(p.subtitle);
+              setOccasion(p.occasion);
+              setPackagingType(p.packagingType);
+              setPrice(p.price);
+              setOriginalPrice(p.originalPrice || p.price);
+              setBadge(p.badge || "উৎসব স্পেশাল");
+              setImage(p.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg");
+              setAvailableStock(p.availableStock || 50);
+              setIsFeatured(p.isFeatured ?? true);
+              setStatus(p.status || "Active");
+              setCustomGreetingAllowed(p.customGreetingAllowed ?? true);
+              if (p.components && p.components.length > 0) {
+                setComponents(p.components);
+              } else if (p.features && p.features.length > 0) {
+                setComponents(p.features.map((f: string) => ({ name: f, quantity: "১টি" })));
+              }
+              return;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch package from API:", err);
         }
-      }
+
+        const existing = getPackageById(idFromParam);
+        if (existing) {
+          setEditingId(existing.id);
+          setTitle(existing.title);
+          setSubtitle(existing.subtitle);
+          setOccasion(existing.occasion);
+          setPackagingType(existing.packagingType);
+          setPrice(existing.price);
+          setOriginalPrice(existing.originalPrice || existing.price);
+          setBadge(existing.badge || "উৎসব স্পেশাল");
+          setImage(existing.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg");
+          setAvailableStock(existing.availableStock || 50);
+          setIsFeatured(existing.isFeatured ?? true);
+          setStatus(existing.status || "Active");
+          setCustomGreetingAllowed(existing.customGreetingAllowed ?? true);
+          if (existing.components && existing.components.length > 0) {
+            setComponents(existing.components);
+          } else if (existing.features && existing.features.length > 0) {
+            setComponents(existing.features.map((f: string) => ({ name: f, quantity: "১টি" })));
+          }
+        }
+      };
+      fetchPackage();
     }
   }, [idFromParam]);
+
+  useEffect(() => {
+    if (!sweetAlert.isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sweetAlert.isOpen]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Image upload directly to Cloudinary
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        alert("ছবির সাইজ ৩ মেগাবাইটের কম হতে হবে।");
+      if (file.size > 8 * 1024 * 1024) {
+        setSweetAlert({
+          isOpen: true,
+          type: "warning",
+          title: "ছবির সাইজ বড়",
+          message: "ছবির সাইজ ৮ মেগাবাইটের কম হতে হবে।",
+          confirmButtonText: "ঠিক আছে",
+        });
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-        showToast("ছবি আপলোড সফল হয়েছে!");
-      };
-      reader.readAsDataURL(file);
+
+      try {
+        setIsUploadingImage(true);
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch("/api/upload/package", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "ক্লাউডিনারি আপলোড ব্যর্থ হয়েছে");
+        }
+        setImage(data.url);
+        setSweetAlert({
+          isOpen: true,
+          type: "success",
+          title: "ছবি আপলোড সফল!",
+          message: "প্যাকেজের ছবি ক্লাউডিনারিতে সফলভাবে সংরক্ষিত হয়েছে।",
+          confirmButtonText: "ঠিক আছে",
+        });
+      } catch (err: any) {
+        setSweetAlert({
+          isOpen: true,
+          type: "error",
+          title: "আপলোড ত্রুটি",
+          message: err.message || "ছবি আপলোড করতে সমস্যা হয়েছে।",
+          confirmButtonText: "বুঝেছি",
+        });
+      } finally {
+        setIsUploadingImage(false);
+      }
     }
   };
 
@@ -185,15 +287,19 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
     showToast(`প্যাকেজে "${prod.name}" যুক্ত হয়েছে!`);
   };
 
-  // Save
-  const handleSave = (e: React.FormEvent) => {
+  // Save Package
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      alert("দয়া করে প্যাকেজের নাম লিখুন।");
+      setSweetAlert({
+        isOpen: true,
+        type: "warning",
+        title: "তথ্য অসম্পূর্ণ",
+        message: "দয়া করে উপহার প্যাকেজের নাম লিখুন।",
+        confirmButtonText: "ঠিক আছে",
+      });
       return;
     }
-
-    setIsSaving(true);
 
     const featuresList = components
       .filter((c) => c.name.trim().length > 0)
@@ -201,7 +307,7 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
 
     const finalId = editingId || `PKG-${Date.now().toString().slice(-4)}`;
 
-    const newPackage: StoredPackage = {
+    const payload = {
       id: finalId,
       title: title.trim(),
       subtitle: subtitle.trim(),
@@ -218,21 +324,116 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
       status,
       availableStock: Number(availableStock) || 0,
       customGreetingAllowed,
-      createdAt: editingId ? (getPackageById(editingId)?.createdAt || "২০২৬-০১-১৫") : "আজকের তারিখ",
     };
 
-    setTimeout(() => {
-      savePackage(newPackage);
-      setIsSaving(false);
-      showToast(editingId ? "প্যাকেজ সফলভাবে আপডেট হয়েছে!" : "নতুন উপহার প্যাকেজ তৈরি হয়েছে!");
+    try {
+      setIsSaving(true);
+      const url = editingId ? `/api/admin/packages/${editingId}` : "/api/admin/packages";
+      const method = editingId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
+      savePackage({
+        ...payload,
+        createdAt: editingId ? (getPackageById(editingId)?.createdAt || "২০২৬-০১-১৫") : new Date().toISOString().split("T")[0],
+      });
+
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: editingId ? "প্যাকেজ আপডেট সম্পন্ন!" : "নতুন প্যাকেজ তৈরি সম্পন্ন!",
+        message: data.message || `উপহার প্যাকেজ "${payload.title}" সফলভাবে ক্লাউডিনারি ইমেজসহ ডেটাবেসে সংরক্ষিত হয়েছে।`,
+        confirmButtonText: "প্যাকেজ তালিকায় যান",
+      });
+
       setTimeout(() => {
         router.push("/admin/packages");
-      }, 700);
-    }, 400);
+      }, 1500);
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "সংরক্ষণে ত্রুটি",
+        message: err.message || "প্যাকেজ সংরক্ষণ করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="font-bengali pb-28 text-stone-900 max-w-7xl mx-auto space-y-8">
+      {/* SweetAlert Custom Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="admin-sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-black/10 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#351C1B] text-amber-100 px-6 py-3.5 rounded-2xl shadow-2xl border border-amber-600/40 text-sm animate-bounce">
@@ -654,21 +855,26 @@ export default function PackageEditor({ packageId }: { packageId?: string }) {
               <input
                 type="file"
                 accept="image/*"
+                disabled={isUploadingImage}
                 onChange={handleImageUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-not-allowed"
               />
               <div className="flex flex-col items-center justify-center space-y-2">
                 <div className="w-12 h-12 rounded-xl bg-amber-100/70 text-[#C48A4E] flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <UploadCloud className="w-6 h-6" />
+                  {isUploadingImage ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-[#C48A4E]" />
+                  ) : (
+                    <UploadCloud className="w-6 h-6" />
+                  )}
                 </div>
                 <p className="text-xs font-bold text-stone-800">
-                  গিফট বক্স ছবি আপলোড করুন
+                  {isUploadingImage ? "ক্লাউডিনারিতে আপলোড হচ্ছে..." : "গিফট বক্স ছবি আপলোড করুন"}
                 </p>
                 <p className="text-[11px] text-stone-400">
-                  JPG, PNG অথবা WEBP (সর্বোচ্চ ৩ MB)
+                  JPG, PNG অথবা WEBP (সর্বোচ্চ ৮ MB)
                 </p>
                 <span className="inline-block px-2.5 py-0.5 bg-amber-50 text-[#C48A4E] text-[10px] font-bold rounded-full mt-1 border border-amber-200">
-                  Cloudinary Ready
+                  Cloudinary CDN
                 </span>
               </div>
             </div>

@@ -32,6 +32,7 @@ import {
   Store,
   Calendar,
   AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import {
   StoreSettings,
@@ -47,16 +48,79 @@ export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
 
-  // Load from localStorage on mount
+  // Sweet Alert Modal State
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning";
+    title: string;
+    message: string;
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+    confirmButtonText: "ঠিক আছে",
+  });
+
+  const fireAlert = (options: {
+    type?: "success" | "error" | "warning";
+    title?: string;
+    message: string;
+    confirmButtonText?: string;
+  }) => {
+    setSweetAlert({
+      isOpen: true,
+      type: options.type || "success",
+      title: options.title || (options.type === "error" ? "দুঃখিত!" : "সফল হয়েছে!"),
+      message: options.message,
+      confirmButtonText: options.confirmButtonText || "ঠিক আছে",
+    });
+  };
+
   useEffect(() => {
-    const loaded = getStoreSettings();
-    setSettings(loaded);
-    if (loaded.logoUrl) {
-      setLogoPreview(loaded.logoUrl);
+    if (!sweetAlert.isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sweetAlert.isOpen]);
+
+  // Load from Supabase Backend API on mount
+  const loadSettings = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/settings");
+      const data = await res.json();
+      if (data.ok && data.settings) {
+        setSettings(data.settings);
+        if (data.settings.logoUrl) {
+          setLogoPreview(data.settings.logoUrl);
+        }
+        saveStoreSettings(data.settings);
+      } else {
+        const fallback = getStoreSettings();
+        setSettings(fallback);
+        if (fallback.logoUrl) setLogoPreview(fallback.logoUrl);
+      }
+    } catch (err) {
+      console.error("Failed to load settings from API, using fallback:", err);
+      const fallback = getStoreSettings();
+      setSettings(fallback);
+      if (fallback.logoUrl) setLogoPreview(fallback.logoUrl);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    loadSettings();
   }, []);
 
   const showToast = (msg: string) => {
@@ -68,49 +132,213 @@ export default function AdminSettingsPage() {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload Logo directly to Cloudinary via backend API
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("ফাইলের সাইজ সর্বোচ্চ ২ মেগাবাইট হতে হবে।");
-        return;
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      fireAlert({
+        type: "warning",
+        title: "সঠিক ছবি দিন",
+        message: "দয়া করে শুধুমাত্র ছবি ফাইল (JPG, PNG, WebP, SVG) নির্বাচন করুন।",
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      fireAlert({
+        type: "warning",
+        title: "ফাইলের সাইজ বড়",
+        message: "লোগোর সাইজ সর্বোচ্চ ৫ মেগাবাইট (5MB) হতে পারবে।",
+      });
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload/logo", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setLogoPreview(data.url);
+        handleFieldChange("logoUrl", data.url);
+        fireAlert({
+          type: "success",
+          title: "লোগো আপলোড সফল!",
+          message: "দই বিলাসের ব্র্যান্ড লোগো ক্লাউডিনারিতে সংরক্ষিত হয়েছে। পরিবর্তন সংরক্ষণ করতে নিচের 'সেভ করুন' বাটনে ক্লিক করুন।",
+        });
+      } else {
+        fireAlert({
+          type: "error",
+          title: "আপলোড ব্যর্থ",
+          message: data.error || "লোগো ক্লাউডিনারিতে আপলোড করা সম্ভব হয়নি।",
+        });
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setLogoPreview(base64);
-        handleFieldChange("logoUrl", base64);
-      };
-      reader.readAsDataURL(file);
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক সমস্যা",
+        message: "লোগো আপলোড করার সময় নেটওয়ার্ক সমস্যা হয়েছে।",
+      });
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
   const handleRemoveLogo = () => {
     setLogoPreview(null);
     handleFieldChange("logoUrl", "");
+    showToast("লোগো রিমুভ করা হয়েছে। পরিবর্তন সংরক্ষণ করতে সেভ করুন।");
   };
 
-  const handleSave = (e?: React.FormEvent) => {
+  // Save Settings to Supabase Backend
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setIsSaving(true);
-    setTimeout(() => {
-      saveStoreSettings(settings);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        fireAlert({
+          type: "error",
+          title: "সংরক্ষণ ব্যর্থ",
+          message: data.error || "সেটিংস ডাটাবেজে সংরক্ষণ করা যায়নি।",
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      saveStoreSettings(data.settings);
+      setSettings(data.settings);
+      if (data.settings.logoUrl) setLogoPreview(data.settings.logoUrl);
+
+      fireAlert({
+        type: "success",
+        title: "সফল হয়েছে!",
+        message: "দই বিলাসের সমস্ত সেটিংস সফলভাবে সুপাবেস ডাটাবেজে সংরক্ষিত হয়েছে!",
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক ত্রুটি",
+        message: "সার্ভারে সংযোগ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।",
+      });
+    } finally {
       setIsSaving(false);
-      showToast("দই বিলাসের সমস্ত সেটিংস সফলভাবে সংরক্ষিত হয়েছে!");
-    }, 400);
+    }
   };
 
-  const handleResetDefaults = () => {
+  const handleResetDefaults = async () => {
     if (confirm("আপনি কি নিশ্চিত যে সমস্ত সেটিংস ডিফল্ট মানে রিসেট করতে চান?")) {
-      setSettings(DEFAULT_SETTINGS);
-      setLogoPreview(DEFAULT_SETTINGS.logoUrl);
-      saveStoreSettings(DEFAULT_SETTINGS);
-      showToast("সেটিংস সফলভাবে ডিফল্ট মানে রিসেট করা হয়েছে।");
+      setIsSaving(true);
+      try {
+        const res = await fetch("/api/admin/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(DEFAULT_SETTINGS),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          setSettings(DEFAULT_SETTINGS);
+          setLogoPreview(DEFAULT_SETTINGS.logoUrl);
+          saveStoreSettings(DEFAULT_SETTINGS);
+          fireAlert({
+            type: "success",
+            title: "ডিফল্ট রিসেট সম্পন্ন!",
+            message: "সমস্ত সেটিংস সফলভাবে ডিফল্ট মানে পুনঃস্থাপন করা হয়েছে।",
+          });
+        }
+      } catch {
+        fireAlert({
+          type: "error",
+          title: "রিসেট ব্যর্থ",
+          message: "ডিফল্ট সেটিংসে রিসেট করতে সমস্যা হয়েছে।",
+        });
+      } finally {
+        setIsSaving(false);
+      }
     }
   };
 
   return (
     <div className="space-y-8 font-bengali pb-24 max-w-7xl mx-auto">
+      {/* Sweet Alert Pop-up Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="settings-sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-black/10 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#351C1B] text-amber-100 px-6 py-3.5 rounded-2xl shadow-2xl border border-amber-600/40 text-sm animate-bounce">
@@ -431,10 +659,16 @@ export default function AdminSettingsPage() {
                   <input
                     type="file"
                     accept="image/*"
+                    disabled={isUploadingLogo}
                     onChange={handleLogoUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-not-allowed"
                   />
-                  {logoPreview ? (
+                  {isUploadingLogo ? (
+                    <div className="flex flex-col items-center justify-center space-y-2 py-4">
+                      <div className="w-8 h-8 border-2 border-[#C48A4E] border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs font-bold text-[#C48A4E]">ক্লাউডিনারিতে আপলোড হচ্ছে...</span>
+                    </div>
+                  ) : logoPreview ? (
                     <div className="flex flex-col items-center justify-center space-y-3">
                       <div className="relative w-28 h-20 bg-stone-900/5 rounded-xl overflow-hidden p-2 flex items-center justify-center">
                         <img

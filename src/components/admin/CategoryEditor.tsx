@@ -43,11 +43,11 @@ import {
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_IMAGES = [
-  { label: "বগুড়ার সরার দই", url: "/Product/doi.jpg" },
-  { label: "লাচ্ছা সেমাই", url: "/Product/laccha_semai.jpg" },
-  { label: "মাটির কাপ দই", url: "/Product/mini_doi.png" },
-  { label: "আমের মিষ্টি দই", url: "/Product/mango.jpg" },
-  { label: "ঘি ও লাড্ডু প্লেসহোল্ডার", url: "/Product/placeholder.svg" },
+  { label: "বগুড়ার সরার দই", url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg" },
+  { label: "মাটির কাপ দই", url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png" },
+  { label: "খাঁটি গাওয়া ঘি", url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg" },
+  { label: "প্রিমিয়াম লাচ্ছা সেমাই", url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg" },
+  { label: "আমের মিষ্টি দই", url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/mango_doi.jpg" },
 ];
 
 const SUGGESTED_HIGHLIGHTS = [
@@ -82,7 +82,7 @@ export default function CategoryEditor() {
   const [slug, setSlug] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [description, setDescription] = useState("");
-  const [image, setImage] = useState("/Product/doi.jpg");
+  const [image, setImage] = useState(PRESET_IMAGES[0].url);
   const [selectedProductSlugs, setSelectedProductSlugs] = useState<string[]>([]);
   const [manualCountOverride, setManualCountOverride] = useState<string>("");
   const [isManualCount, setIsManualCount] = useState(false);
@@ -116,17 +116,74 @@ export default function CategoryEditor() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<"general" | "products" | "features">("general");
 
-  // Load existing data if editing
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "warning";
+    confirmButtonText?: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "success",
+  });
+
   useEffect(() => {
-    if (editId) {
+    if (!sweetAlert.isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sweetAlert.isOpen]);
+
+  // Load existing data if editing (Live Database with localStorage Fallback)
+  useEffect(() => {
+    if (!editId) return;
+
+    let isMounted = true;
+    const fetchCategory = async () => {
+      try {
+        const res = await fetch(`/api/admin/categories/${editId}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && json.category && isMounted) {
+            const existing = json.category;
+            setNameBn(existing.nameBn || "");
+            setNameEn(existing.name || "");
+            setSlug(existing.slug || "");
+            setSubtitle(existing.subtitle || "");
+            setDescription(existing.description || "");
+            setImage(existing.image || PRESET_IMAGES[0].url);
+            setSelectedProductSlugs(existing.productSlugs || []);
+            setHighlights(existing.highlights && existing.highlights.length > 0 ? existing.highlights : []);
+            setTags(existing.tags && existing.tags.length > 0 ? existing.tags : []);
+            setIsFeatured(Boolean(existing.isFeatured));
+            setStatus(existing.status || "active");
+            if (existing.totalProducts !== existing.productSlugs?.length) {
+              setIsManualCount(true);
+              setManualCountOverride(String(existing.totalProducts));
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch category from API, falling back:", err);
+      }
+
+      // Fallback to local storage if API fails
       const existing = getCategoryByIdOrSlug(editId);
-      if (existing) {
+      if (existing && isMounted) {
         setNameBn(existing.nameBn);
         setNameEn(existing.name);
         setSlug(existing.slug);
         setSubtitle(existing.subtitle || "");
         setDescription(existing.description || "");
-        setImage(existing.image || "/Product/doi.jpg");
+        setImage(existing.image || PRESET_IMAGES[0].url);
         setSelectedProductSlugs(existing.productSlugs || []);
         setHighlights(existing.highlights && existing.highlights.length > 0 ? existing.highlights : []);
         setTags(existing.tags && existing.tags.length > 0 ? existing.tags : []);
@@ -137,13 +194,36 @@ export default function CategoryEditor() {
           setManualCountOverride(String(existing.totalProducts));
         }
       }
-    }
+    };
+
+    fetchCategory();
+
+    return () => {
+      isMounted = false;
+    };
   }, [editId]);
 
-  // Image File Processing (Front-end preview + Cloudinary integration ready)
-  const processImageFile = (file: File) => {
+  // Image File Processing with Cloudinary Backend API
+  const processImageFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      alert("অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন (JPG, PNG, WebP)");
+      setSweetAlert({
+        isOpen: true,
+        type: "warning",
+        title: "ভুল ফাইল ফরম্যাট",
+        message: "অনুগ্রহ করে একটি ছবি ফাইল নির্বাচন করুন (JPG, PNG, WebP)।",
+        confirmButtonText: "বুঝেছি",
+      });
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      setSweetAlert({
+        isOpen: true,
+        type: "warning",
+        title: "ছবির সাইজ অতিরিক্ত",
+        message: "ছবির আকার সর্বোচ্চ ৮ মেগাবাইট (8MB) হতে পারবে।",
+        confirmButtonText: "বুঝেছি",
+      });
       return;
     }
 
@@ -153,31 +233,36 @@ export default function CategoryEditor() {
     setUploadedFileSize(sizeStr);
     setIsUploading(true);
 
-    // Read image locally for instantaneous front-end preview & state binding
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        setImage(e.target.result as string);
-        setIsUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    /*
-     * ── CLOUDINARY INTEGRATION HOOK ──────────────────────────────────
-     * পরবর্তীতে ব্যাকএন্ড যুক্ত করার সময় নিচের লজিকটি সচল করুন:
-     *
-     * const formData = new FormData();
-     * formData.append("file", file);
-     * formData.append("upload_preset", process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "doibilash_preset");
-     * const res = await fetch(`https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`, {
-     *   method: "POST",
-     *   body: formData,
-     * });
-     * const data = await res.json();
-     * setImage(data.secure_url);
-     * ────────────────────────────────────────────────────────────────
-     */
+      const res = await fetch("/api/upload/category", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "ক্লাউডিনারিতে ছবি আপলোড ব্যর্থ হয়েছে");
+      }
+
+      setImage(data.url);
+      setToastMessage("ছবি ক্লাউডিনারিতে সফলভাবে সংরক্ষিত হয়েছে!");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (err: any) {
+      console.error("Category image upload error:", err);
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ছবি আপলোড ত্রুটি",
+        message: err.message || "ক্লাউডিনারিতে ছবি আপলোড করা যায়নি। অনুগ্রহ করে সংযোগ পরীক্ষা করে পুনরায় চেষ্টা করুন।",
+        confirmButtonText: "ঠিক আছে",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -207,7 +292,7 @@ export default function CategoryEditor() {
   };
 
   const handleRemoveUploadedImage = () => {
-    setImage("/Product/doi.jpg");
+    setImage(PRESET_IMAGES[0].url);
     setUploadedFileName("");
     setUploadedFileSize("");
     if (fileInputRef.current) {
@@ -302,8 +387,8 @@ export default function CategoryEditor() {
     setTags((prev) => prev.filter((t) => t !== text));
   };
 
-  // Save Category Action
-  const handleSave = (e?: React.FormEvent) => {
+  // Save Category Action to Supabase PostgreSQL Database
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const errors: Record<string, string> = {};
 
@@ -323,36 +408,160 @@ export default function CategoryEditor() {
     setFormErrors({});
     setIsSaving(true);
 
-    const categoryToSave: StoredCategory = {
-      id: editId || `cat-${Date.now()}`,
+    const payload = {
+      id: editId || undefined,
       slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
       name: nameEn.trim() || nameBn.trim(),
       nameBn: nameBn.trim(),
       subtitle: subtitle.trim() || "ঐতিহ্যবাহী সেরা মানের পণ্য সম্ভার",
       description: description.trim() || `${nameBn.trim()} সম্পর্কিত সকল সেরা পণ্য।`,
-      image: image.trim() || "/Product/doi.jpg",
+      image: image.trim() || PRESET_IMAGES[0].url,
       totalProducts: effectiveTotalProducts,
       highlights: highlights,
       tags: tags,
       productSlugs: selectedProductSlugs,
       isFeatured: isFeatured,
       status: status,
-      createdAt: new Date().toISOString().split("T")[0],
     };
 
-    saveCategory(categoryToSave);
+    try {
+      const url = editId ? `/api/admin/categories/${editId}` : "/api/admin/categories";
+      const method = editId ? "PUT" : "POST";
 
-    setToastMessage(editId ? "ক্যাটাগরি সফলভাবে আপডেট হয়েছে!" : "নতুন ক্যাটাগরি সফলভাবে তৈরি হয়েছে!");
-    setShowToast(true);
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    setTimeout(() => {
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "ক্যাটাগরি ডেটাবেসে সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
+      // Also update local storage cache for instant offline sync
+      try {
+        saveCategory({
+          id: data.category?.id || editId || `cat-${Date.now()}`,
+          slug: payload.slug,
+          name: payload.name,
+          nameBn: payload.nameBn,
+          subtitle: payload.subtitle,
+          description: payload.description,
+          image: payload.image,
+          totalProducts: payload.totalProducts,
+          highlights: payload.highlights,
+          tags: payload.tags,
+          productSlugs: payload.productSlugs,
+          isFeatured: payload.isFeatured,
+          status: payload.status,
+          createdAt: new Date().toISOString().split("T")[0],
+        });
+      } catch {}
+
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: editId ? "ক্যাটাগরি সফলভাবে আপডেট হয়েছে!" : "নতুন ক্যাটাগরি তৈরি হয়েছে!",
+        message: editId
+          ? `"${payload.nameBn}" ক্যাটাগরির তথ্য সফলভাবে ডেটাবেসে আপডেট ও সংরক্ষিত হয়েছে।`
+          : `"${payload.nameBn}" নতুন ক্যাটাগরি সফলভাবে ডেটাবেসে তৈরি ও সংরক্ষণ করা হয়েছে।`,
+        confirmButtonText: "ক্যাটাগরি তালিকায় ফিরে যান",
+        onConfirm: () => {
+          router.push("/admin/categories");
+        },
+      });
+    } catch (err: any) {
+      console.error("Save category error:", err);
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "সংরক্ষণ ব্যর্থ হয়েছে",
+        message: err.message || "ডেটাবেসে সংরক্ষণ করা সম্ভব হয়নি। অনুগ্রহ করে সংযোগ যাচাই করে পুনরায় চেষ্টা করুন।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
       setIsSaving(false);
-      router.push("/admin/categories");
-    }, 1200);
+    }
   };
 
   return (
     <div className="font-bengali min-h-screen text-doibrand-dark pb-20">
+      {/* SweetAlert Custom Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => {
+              if (sweetAlert.onConfirm) {
+                sweetAlert.onConfirm();
+              }
+              setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+            }}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-category-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                if (sweetAlert.onConfirm) {
+                  sweetAlert.onConfirm();
+                }
+                setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+              }}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="admin-category-sweetalert-title"
+              className="text-xl font-bold text-stone-900 mb-2"
+            >
+              {sweetAlert.title}
+            </h3>
+            <p className="text-sm text-stone-600 leading-relaxed mb-6">
+              {sweetAlert.message}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (sweetAlert.onConfirm) {
+                  sweetAlert.onConfirm();
+                }
+                setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+              }}
+              className="w-full py-3.5 px-4 rounded-2xl bg-linear-to-r from-doibrand-dark via-[#432322] to-doibrand-accent hover:from-doibrand-accent hover:to-doibrand-gold text-white font-bold text-sm shadow-md transition cursor-pointer"
+            >
+              {sweetAlert.confirmButtonText || "ঠিক আছে"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {showToast && (
         <div className="fixed top-6 right-6 z-50 animate-header-fade-up bg-stone-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-doibrand-gold/40">
@@ -361,7 +570,7 @@ export default function CategoryEditor() {
           </div>
           <div>
             <p className="font-bold text-sm">{toastMessage}</p>
-            <p className="text-xs text-gray-400">ক্যাটাগরি তালিকায় রিডাইরেক্ট করা হচ্ছে...</p>
+            <p className="text-xs text-gray-400">ক্যাটাগরি ডেটা প্রস্তুত রয়েছে</p>
           </div>
         </div>
       )}
@@ -816,8 +1025,8 @@ export default function CategoryEditor() {
                             PNG, JPG, WebP ফরম্যাট সমর্থিত (সর্বোচ্চ ৫ মেগাবাইট)
                           </p>
                         </div>
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-stone-200/70 text-[10px] font-semibold text-stone-700 font-sans mt-1">
-                          ফ্রন্টএন্ডে তাত্ক্ষণিক প্রিভিউ + পরবর্তীতে Cloudinary কানেক্টেড
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-semibold text-emerald-700 font-sans mt-1">
+                          <Check className="w-3 h-3 text-emerald-600" /> সরাসরি Cloudinary CDN-এ স্বয়ংক্রিয় আপলোড
                         </span>
                       </div>
                     </div>
@@ -842,9 +1051,16 @@ export default function CategoryEditor() {
                             <div className="flex items-center gap-2 text-[10px] text-stone-500 font-sans mt-0.5">
                               <span>{uploadedFileSize}</span>
                               <span>•</span>
-                              <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                                <Check className="w-3 h-3" /> ফ্রন্টএন্ডে প্রস্তুত
-                              </span>
+                              {isUploading ? (
+                                <span className="text-blue-700 font-semibold flex items-center gap-1.5 animate-pulse">
+                                  <RefreshCw className="w-3 h-3 animate-spin text-blue-600" />
+                                  ক্লাউডিনারিতে আপলোড হচ্ছে...
+                                </span>
+                              ) : (
+                                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-emerald-600" /> ক্লাউডিনারিতে সংরক্ষিত
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -938,7 +1154,7 @@ export default function CategoryEditor() {
                       />
                       <button
                         type="button"
-                        onClick={() => setImage("/Product/doi.jpg")}
+                        onClick={() => setImage(PRESET_IMAGES[0].url)}
                         className="px-3.5 py-3 rounded-xl border border-stone-200 text-xs font-bold text-stone-600 hover:bg-stone-50 cursor-pointer"
                       >
                         রিসেট

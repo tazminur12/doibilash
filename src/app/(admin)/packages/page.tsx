@@ -21,6 +21,7 @@ import {
   Star,
   Eye,
   Check,
+  X,
 } from "lucide-react";
 import {
   StoredPackage,
@@ -40,7 +41,37 @@ export default function AdminPackagesPage() {
   const [packageToDelete, setPackageToDelete] = useState<StoredPackage | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const loadData = () => {
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "warning";
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "success",
+  });
+
+  const loadData = async () => {
+    try {
+      const res = await fetch("/api/admin/packages");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.packages)) {
+          setPackages(json.packages);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("doibilash_gift_packages_v1", JSON.stringify(json.packages));
+            } catch {}
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load packages from API:", err);
+    }
     setPackages(getStoredPackages());
   };
 
@@ -48,26 +79,80 @@ export default function AdminPackagesPage() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    if (!sweetAlert.isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sweetAlert.isOpen]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleToggleStatus = (pkg: StoredPackage, e: React.MouseEvent) => {
+  const handleToggleStatus = async (pkg: StoredPackage, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updatedStatus: PackageStatus = pkg.status === "Active" ? "Draft" : "Active";
-    const updated = { ...pkg, status: updatedStatus };
-    savePackage(updated);
-    loadData();
-    showToast(`প্যাকেজ "${pkg.title}" এর স্ট্যাটাস "${updatedStatus === "Active" ? "সক্রিয়" : "খসড়া"}" করা হয়েছে।`);
+    try {
+      const res = await fetch(`/api/admin/packages/${pkg.id}/status`, {
+        method: "PATCH",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "স্ট্যাটাস পরিবর্তন ব্যর্থ হয়েছে");
+      }
+      await loadData();
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "স্ট্যাটাস পরিবর্তন সম্পন্ন!",
+        message: data.message || `প্যাকেজ "${pkg.title}" এর স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!packageToDelete) return;
-    deletePackage(packageToDelete.id);
-    loadData();
-    showToast(`প্যাকেজ "${packageToDelete.title}" মুছে ফেলা হয়েছে।`);
-    setPackageToDelete(null);
+    try {
+      const res = await fetch(`/api/admin/packages/${packageToDelete.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "মুছে ফেলা ব্যর্থ হয়েছে");
+      }
+      const title = packageToDelete.title;
+      setPackageToDelete(null);
+      await loadData();
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "প্যাকেজ মুছে ফেলা হয়েছে!",
+        message: `উপহার প্যাকেজ "${title}" সফলভাবে তালিকা থেকে মুছে ফেলা হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "প্যাকেজ মুছে ফেলা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    }
   };
 
   // Filtered packages
@@ -92,6 +177,69 @@ export default function AdminPackagesPage() {
 
   return (
     <div className="space-y-8 font-bengali pb-24 max-w-7xl mx-auto">
+      {/* SweetAlert Custom Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="admin-sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-black/10 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Feedback */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#351C1B] text-amber-100 px-6 py-3.5 rounded-2xl shadow-2xl border border-amber-600/40 text-sm animate-bounce">

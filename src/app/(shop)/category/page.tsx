@@ -3,8 +3,11 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ArrowUpRight, Sparkles, Store, ArrowRight } from "lucide-react";
-import { CATEGORY_LIST } from "@/data/categories";
+import { CATEGORY_LIST, CATEGORY_MAP } from "@/data/categories";
+import { getPublicCategories } from "@/lib/categoryService";
 import { toBnDigits } from "@/lib/bangla";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "সকল ক্যাটাগরি",
@@ -13,8 +16,44 @@ export const metadata: Metadata = pageMetadata({
   path: "/category",
 });
 
-export default function CategoryIndexPage() {
-  const totalProducts = CATEGORY_LIST.reduce((sum, c) => sum + c.products.length, 0);
+export default async function CategoryIndexPage() {
+  const dbCategories = await getPublicCategories().catch(() => []);
+
+  const categories =
+    dbCategories.length > 0
+      ? dbCategories.map((c) => {
+          const staticCat = CATEGORY_MAP[c.slug];
+          const productsCount = c.totalProducts || (staticCat ? staticCat.products.length : 0);
+          const lowestPrice =
+            staticCat && staticCat.products.length > 0
+              ? Math.min(...staticCat.products.map((p) => p.numericPrice))
+              : 350;
+          return {
+            slug: c.slug,
+            name: c.nameBn,
+            englishName: c.name,
+            subtitle: c.subtitle || staticCat?.subtitle || "",
+            image: c.image || staticCat?.image || "/Product/doi.jpg",
+            highlights:
+              c.highlights && c.highlights.length > 0
+                ? c.highlights
+                : staticCat?.highlights || ["খাঁটি উপাদান", "প্রিজারভেটিভমুক্ত"],
+            productsCount,
+            lowestPrice,
+          };
+        })
+      : CATEGORY_LIST.map((c) => ({
+          slug: c.slug,
+          name: c.name,
+          englishName: c.englishName,
+          subtitle: c.subtitle,
+          image: c.image,
+          highlights: c.highlights,
+          productsCount: c.products.length,
+          lowestPrice: Math.min(...c.products.map((p) => p.numericPrice)),
+        }));
+
+  const totalProducts = categories.reduce((sum, c) => sum + c.productsCount, 0);
 
   return (
     <main className="min-h-screen bg-doibrand-light text-doibrand-dark font-bengali">
@@ -50,7 +89,7 @@ export default function CategoryIndexPage() {
             </div>
             <div className="flex items-center gap-6">
               <div>
-                <p className="text-2xl font-extrabold">{toBnDigits(CATEGORY_LIST.length)}টি</p>
+                <p className="text-2xl font-extrabold">{toBnDigits(categories.length)}টি</p>
                 <p className="text-[11px] text-stone-500">ক্যাটাগরি</p>
               </div>
               <span className="w-px h-9 bg-doibrand-gold/25" />
@@ -66,8 +105,8 @@ export default function CategoryIndexPage() {
       {/* Category Cards */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-          {CATEGORY_LIST.map((category, idx) => {
-            const lowestPrice = Math.min(...category.products.map((p) => p.numericPrice));
+          {categories.map((category, idx) => {
+            const lowestPrice = category.lowestPrice;
             return (
               <Link
                 key={category.slug}
@@ -85,7 +124,7 @@ export default function CategoryIndexPage() {
                   />
                   <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/45 via-black/5 to-transparent" />
                   <span className="absolute top-3 left-3 rounded-full bg-white/90 backdrop-blur px-3 py-1 text-[11px] font-bold text-doibrand-accent shadow-sm">
-                    {toBnDigits(category.products.length)}টি পণ্য
+                    {toBnDigits(category.productsCount)}টি পণ্য
                   </span>
                   <span className="absolute top-3 right-3 w-10 h-10 grid place-items-center rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-gold text-white shadow-md transition-transform duration-500 group-hover:rotate-45">
                     <ArrowUpRight className="w-4 h-4" />

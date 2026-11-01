@@ -66,15 +66,55 @@ export default function SpecialOffersPage() {
   const [campaign, setCampaign] = useState<CampaignSettings>(DEFAULT_CAMPAIGN_SETTINGS);
 
   useEffect(() => {
-    const refresh = () => {
-      setPromos(getStoredPromos());
-      setFlashDeals(getStoredFlashDeals());
-      setCampaign(getStoredCampaignSettings());
+    let isMounted = true;
+
+    const fetchLiveOffers = async () => {
+      try {
+        const res = await fetch("/api/offers");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && isMounted) {
+            if (json.promos) {
+              setPromos(json.promos);
+              try {
+                localStorage.setItem("doibilash_promo_codes_v2", JSON.stringify(json.promos));
+              } catch {}
+            }
+            if (json.flashDeals) {
+              setFlashDeals(json.flashDeals);
+              try {
+                localStorage.setItem("doibilash_flash_deals_v2", JSON.stringify(json.flashDeals));
+              } catch {}
+            }
+            if (json.campaign) {
+              setCampaign(json.campaign);
+              try {
+                localStorage.setItem("doibilash_campaign_settings_v2", JSON.stringify(json.campaign));
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch live offers from server:", err);
+      }
     };
-    refresh();
+
+    // Load from cache first for zero layout shift
+    setPromos(getStoredPromos());
+    setFlashDeals(getStoredFlashDeals());
+    setCampaign(getStoredCampaignSettings());
+
+    // Fetch freshest live data from backend
+    fetchLiveOffers();
+
+    const refresh = () => {
+      fetchLiveOffers();
+    };
+
     window.addEventListener(OFFERS_UPDATED_EVENT, refresh);
     window.addEventListener("storage", refresh);
     return () => {
+      isMounted = false;
       window.removeEventListener(OFFERS_UPDATED_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };

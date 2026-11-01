@@ -23,8 +23,16 @@ import {
   Snowflake,
   ShieldCheck,
   CircleHelp,
+  LogOut,
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import {
+  getCurrentUser,
+  clearCurrentUser,
+  syncCurrentUserWithServer,
+  AUTH_CHANGED_EVENT,
+  UserSession,
+} from "@/lib/authStorage";
 
 const navLinks = [
   { name: "হোম", englishName: "Home", href: "/", icon: Home },
@@ -48,6 +56,44 @@ export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [currentUser, setCurrentUser] = useState<UserSession | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // 1. Initial cached user
+    const cached = getCurrentUser();
+    if (cached) setCurrentUser(cached);
+
+    // 2. Fetch fresh session from Supabase server
+    syncCurrentUserWithServer().then((user) => {
+      if (user) setCurrentUser(user);
+    });
+
+    const handleAuthChange = (e: Event) => {
+      const customEvent = e as CustomEvent<UserSession | null>;
+      setCurrentUser(customEvent.detail);
+    };
+    window.addEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    return () => {
+      window.removeEventListener(AUTH_CHANGED_EVENT, handleAuthChange);
+    };
+  }, []);
+
+  // Close user menu on outside click
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [isUserMenuOpen]);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { openCart, totalCount } = useCart();
@@ -283,18 +329,126 @@ export default function Header() {
                 <Truck className="w-5 h-5 transition-transform duration-300 group-hover:-translate-y-0.5" />
               </Link>
 
-              <Link
-                href="/profile"
-                className={`hidden sm:grid w-10 h-10 place-items-center rounded-full transition group ${
-                  isActive("/profile")
-                    ? "bg-doibrand-gold/15 text-doibrand-accent"
-                    : "text-doibrand-dark hover:text-doibrand-accent hover:bg-doibrand-dark/5"
-                }`}
-                title="Profile"
-                aria-label="Profile"
-              >
-                <User className="w-5 h-5 transition-transform duration-300 group-hover:-translate-y-0.5" />
-              </Link>
+              {/* User Profile / Login Button */}
+              {currentUser ? (
+                <div className="relative hidden sm:block" ref={userMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                    className={`flex items-center gap-2 h-10 pl-1.5 pr-2.5 rounded-full transition-all duration-200 border cursor-pointer group ${
+                      isUserMenuOpen || isActive("/profile")
+                        ? "bg-[#FFF9F1] border-doibrand-gold shadow-xs ring-2 ring-doibrand-gold/20"
+                        : "bg-white hover:bg-[#FFF9F1] border-stone-200/90 hover:border-doibrand-gold"
+                    }`}
+                    title={`${currentUser.name} (প্রোফাইল)`}
+                    aria-expanded={isUserMenuOpen}
+                  >
+                    {/* Cloudinary picture or Initials Badge */}
+                    <div className="relative w-7 h-7 rounded-full overflow-hidden shrink-0 shadow-2xs">
+                      {currentUser.avatarUrl ? (
+                        <Image
+                          src={currentUser.avatarUrl}
+                          alt={currentUser.name}
+                          fill
+                          className="object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-linear-to-br from-[#E9C893] via-doibrand-gold to-doibrand-accent text-white font-black text-xs flex items-center justify-center">
+                          {Array.from(currentUser.name)[0] || "U"}
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white" />
+                    </div>
+
+                    <span className="text-xs font-bold text-doibrand-dark max-w-[90px] truncate font-bengali">
+                      {currentUser.name.split(" ")[0]}
+                    </span>
+                    <ChevronRight
+                      className={`w-3.5 h-3.5 text-stone-400 transition-transform duration-200 ${
+                        isUserMenuOpen ? "rotate-90 text-doibrand-accent" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl bg-white shadow-2xl border border-amber-900/10 p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                      <div className="p-3 pb-3.5 border-b border-stone-100 flex items-center gap-3 bg-[#FAF8F5] rounded-xl mb-1.5">
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 ring-2 ring-doibrand-gold/40 shadow-xs">
+                          {currentUser.avatarUrl ? (
+                            <Image
+                              src={currentUser.avatarUrl}
+                              alt={currentUser.name}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-black text-sm flex items-center justify-center">
+                              {Array.from(currentUser.name)[0] || "U"}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-black text-doibrand-dark truncate">{currentUser.name}</p>
+                          <p className="text-[10px] text-stone-500 font-sans truncate">{currentUser.phone}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <Link
+                          href="/profile"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-stone-700 hover:text-doibrand-accent hover:bg-[#FFF9F1] rounded-xl transition"
+                        >
+                          <User className="w-4 h-4 text-doibrand-gold" />
+                          <span>আমার প্রোফাইল</span>
+                        </Link>
+                        <Link
+                          href="/track-order"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-stone-700 hover:text-doibrand-accent hover:bg-[#FFF9F1] rounded-xl transition"
+                        >
+                          <Truck className="w-4 h-4 text-doibrand-gold" />
+                          <span>অর্ডার ট্র্যাক</span>
+                        </Link>
+                      </div>
+
+                      <div className="pt-1.5 mt-1 border-t border-stone-100">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            clearCurrentUser();
+                            setIsUserMenuOpen(false);
+                            router.push("/login");
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl transition cursor-pointer"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>লগআউট</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className={`hidden sm:flex items-center gap-2 h-10 px-3.5 rounded-full border border-stone-200/90 hover:border-doibrand-gold text-doibrand-dark hover:text-doibrand-accent hover:bg-[#FFF9F1] transition shadow-2xs group ${
+                    isActive("/login") || isActive("/register")
+                      ? "bg-[#FFF9F1] border-doibrand-gold text-doibrand-accent font-bold"
+                      : "bg-white"
+                  }`}
+                  title="অ্যাকাউন্টে লগইন বা সাইন-আপ করুন"
+                  aria-label="লগইন"
+                >
+                  <div className="w-6 h-6 rounded-full bg-stone-100 flex items-center justify-center text-stone-600 group-hover:text-doibrand-accent group-hover:bg-[#FBEBD2] transition">
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-xs font-bold font-bengali">লগইন</span>
+                </Link>
+              )}
 
               <button
                 type="button"
@@ -446,9 +600,56 @@ export default function Header() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="relative mt-4 text-xs text-doibrand-light/70 leading-relaxed">
+            <p className="relative mt-3 text-xs text-doibrand-light/70 leading-relaxed">
               বগুড়ার ঐতিহ্যবাহী খাঁটি দই ও মিষ্টি — সরাসরি আপনার দোরগোড়ায়।
             </p>
+
+            {/* Mobile User Profile Card / Login Prompt */}
+            {currentUser ? (
+              <Link
+                href="/profile"
+                onClick={closeMenu}
+                className="relative mt-4 flex items-center gap-3 p-3 rounded-2xl bg-white/10 border border-white/10 hover:bg-white/15 transition group"
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden relative shrink-0 ring-2 ring-doibrand-gold">
+                  {currentUser.avatarUrl ? (
+                    <Image
+                      src={currentUser.avatarUrl}
+                      alt={currentUser.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-bold text-sm flex items-center justify-center">
+                      {Array.from(currentUser.name)[0] || "U"}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                  <p className="text-[10px] text-amber-200/80 font-sans truncate">{currentUser.phone}</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-doibrand-gold group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            ) : (
+              <div className="relative mt-4 flex items-center gap-2">
+                <Link
+                  href="/login"
+                  onClick={closeMenu}
+                  className="flex-1 py-2 px-3 rounded-xl bg-linear-to-r from-doibrand-accent to-doibrand-gold text-white text-xs font-bold text-center shadow-xs"
+                >
+                  লগইন করুন
+                </Link>
+                <Link
+                  href="/register"
+                  onClick={closeMenu}
+                  className="flex-1 py-2 px-3 rounded-xl bg-white/15 hover:bg-white/20 text-white text-xs font-bold text-center border border-white/20"
+                >
+                  নতুন অ্যাকাউন্ট
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Drawer Links */}
@@ -511,12 +712,22 @@ export default function Header() {
           {/* Drawer Footer */}
           <div className="border-t border-doibrand-dark/[0.06] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] grid grid-cols-3 gap-2 text-center text-[11px] font-medium text-doibrand-dark">
             <Link
-              href="/profile"
+              href={currentUser ? "/profile" : "/login"}
               onClick={closeMenu}
               className="flex flex-col items-center gap-1.5 py-3 rounded-2xl bg-white ring-1 ring-doibrand-dark/5 hover:ring-doibrand-gold/40 transition"
             >
-              <User className="w-[18px] h-[18px] text-doibrand-gold" />
-              প্রোফাইল
+              {currentUser?.avatarUrl ? (
+                <div className="w-5 h-5 rounded-full overflow-hidden relative ring-1 ring-doibrand-gold shrink-0">
+                  <Image src={currentUser.avatarUrl} alt={currentUser.name} fill className="object-cover" unoptimized />
+                </div>
+              ) : currentUser ? (
+                <div className="w-5 h-5 rounded-full bg-linear-to-br from-[#E9C893] to-doibrand-accent text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                  {Array.from(currentUser.name)[0] || "U"}
+                </div>
+              ) : (
+                <User className="w-[18px] h-[18px] text-doibrand-gold" />
+              )}
+              <span>{currentUser ? "প্রোফাইল" : "লগইন"}</span>
             </Link>
             <Link
               href="/track-order"

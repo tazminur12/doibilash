@@ -33,6 +33,8 @@ import {
   SlidersHorizontal,
   X,
   HelpCircle,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import {
   StoredPromoCode,
@@ -48,16 +50,34 @@ import {
   toggleFlashDealActive,
   getStoredCampaignSettings,
   saveCampaignSettings,
+  STORAGE_KEY_PROMOS,
+  STORAGE_KEY_FLASH,
+  STORAGE_KEY_CAMPAIGN,
 } from "@/lib/offerStorage";
 import { getStoredProducts, StoredProduct } from "@/lib/productStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PRESET_FLASH_IMAGES = [
-  { label: "বগুড়ার স্পেশাল সরার দই", url: "/Product/doi.jpg" },
-  { label: "প্রিমিয়াম লাচ্ছা সেমাই", url: "/Product/laccha_semai.jpg" },
-  { label: "মাটির কাপ দই সেট", url: "/Product/mini_doi.png" },
-  { label: "আমের দই স্পেশাল", url: "/Product/mango.jpg" },
-  { label: "সাধারণ আইটেম", url: "/Product/placeholder.svg" },
+  {
+    label: "বগুড়ার স্পেশাল সরার দই",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+  },
+  {
+    label: "প্রিমিয়াম লাচ্ছা সেমাই",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg",
+  },
+  {
+    label: "মাটির কাপ দই সেট",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png",
+  },
+  {
+    label: "আমের দই স্পেশাল",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/mango_doi.jpg",
+  },
+  {
+    label: "ক্যাম্পেইন ব্যানার",
+    url: "https://res.cloudinary.com/cwihms31/image/upload/v1793515858/doibilash/offers/campaign_banner.png",
+  },
 ];
 
 const PRESET_TAGS = [
@@ -141,25 +161,87 @@ export default function AdminOffersPage() {
   const [campEnd, setCampEnd] = useState("");
   const [campBannerActive, setCampBannerActive] = useState(true);
   const [campAnnouncement, setCampAnnouncement] = useState("");
+  const [campBannerUrl, setCampBannerUrl] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingOfferImage, setIsUploadingOfferImage] = useState(false);
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "success" | "error" | "warning";
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "success",
+  });
 
-  const loadData = () => {
-    setPromos(getStoredPromos());
-    setFlashDeals(getStoredFlashDeals());
-    const c = getStoredCampaignSettings();
-    setCampaign(c);
-    setCampBadge(c.badge);
-    setCampTitle(c.title);
-    setCampHighlight(c.highlightText);
-    setCampDesc(c.description);
-    setCampEnd(c.campaignEnd ? c.campaignEnd.slice(0, 16) : "");
-    setCampBannerActive(c.bannerActive);
-    setCampAnnouncement(c.announcementText || "");
+  const loadData = async () => {
+    try {
+      const res = await fetch("/api/admin/offers");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.ok) {
+          if (json.promos) {
+            setPromos(json.promos);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY_PROMOS, JSON.stringify(json.promos));
+            }
+          }
+          if (json.flashDeals) {
+            setFlashDeals(json.flashDeals);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY_FLASH, JSON.stringify(json.flashDeals));
+            }
+          }
+          if (json.campaign) {
+            setCampaign(json.campaign);
+            setCampBadge(json.campaign.badge || "মেগা ডিসকাউন্ট উৎসব");
+            setCampTitle(json.campaign.title || "স্পেশাল");
+            setCampHighlight(json.campaign.highlightText || "ধামাকা অফার");
+            setCampDesc(json.campaign.description || "");
+            setCampEnd(json.campaign.campaignEnd ? json.campaign.campaignEnd.slice(0, 16) : "");
+            setCampBannerActive(json.campaign.bannerActive !== false);
+            setCampAnnouncement(json.campaign.announcementText || "");
+            setCampBannerUrl(json.campaign.bannerUrl || "");
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY_CAMPAIGN, JSON.stringify(json.campaign));
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load offers from server:", err);
+      setPromos(getStoredPromos());
+      setFlashDeals(getStoredFlashDeals());
+      const c = getStoredCampaignSettings();
+      setCampaign(c);
+      setCampBadge(c.badge);
+      setCampTitle(c.title);
+      setCampHighlight(c.highlightText);
+      setCampDesc(c.description);
+      setCampEnd(c.campaignEnd ? c.campaignEnd.slice(0, 16) : "");
+      setCampBannerActive(c.bannerActive);
+      setCampAnnouncement(c.announcementText || "");
+    }
     setProducts(getStoredProducts());
   };
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!sweetAlert.isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sweetAlert.isOpen]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -182,24 +264,60 @@ export default function AdminOffersPage() {
   };
 
   // ── TOGGLE STATUS ───────────────────────────────────────────────────────
-  const handleTogglePromo = (id: string, code: string, currentStatus: boolean) => {
-    togglePromoActive(id);
-    loadData();
-    showToast(
-      currentStatus
-        ? `প্রোমো কোড "${code}" নিষ্ক্রিয় করা হয়েছে।`
-        : `প্রোমো কোড "${code}" সক্রিয় (Activate) করা হয়েছে!`
-    );
+  const handleTogglePromo = async (id: string, code: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`/api/admin/offers/promos/${id}/status`, {
+        method: "PATCH",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "স্ট্যাটাস পরিবর্তন ব্যর্থ হয়েছে");
+      }
+      await loadData();
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "প্রোমো কোড স্ট্যাটাস আপডেট",
+        message: data.message || `প্রোমো কোড "${code}" আপডেট করা হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    }
   };
 
-  const handleToggleFlash = (id: string, title: string, currentStatus: boolean) => {
-    toggleFlashDealActive(id);
-    loadData();
-    showToast(
-      currentStatus
-        ? `ফ্ল্যাশ অফার "${title}" স্থগিত করা হয়েছে।`
-        : `ফ্ল্যাশ অফার "${title}" সক্রিয় করা হয়েছে!`
-    );
+  const handleToggleFlash = async (id: string, title: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch(`/api/admin/offers/flash/${id}/status`, {
+        method: "PATCH",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "স্ট্যাটাস পরিবর্তন ব্যর্থ হয়েছে");
+      }
+      await loadData();
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "ফ্ল্যাশ অফার স্ট্যাটাস আপডেট",
+        message: data.message || `ফ্ল্যাশ অফার "${title}" আপডেট করা হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "স্ট্যাটাস পরিবর্তন করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    }
   };
 
   // ── PROMO MODAL HANDLERS ────────────────────────────────────────────────
@@ -245,10 +363,16 @@ export default function AdminOffersPage() {
     setIsPromoModalOpen(true);
   };
 
-  const handleSavePromo = (e: React.FormEvent) => {
+  const handleSavePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pCode.trim()) {
-      alert("দয়া করে প্রোমো কোড দিন।");
+      setSweetAlert({
+        isOpen: true,
+        type: "warning",
+        title: "তথ্য অসম্পূর্ণ",
+        message: "দয়া করে একটি প্রোমো কোড লিখুন।",
+        confirmButtonText: "ঠিক আছে",
+      });
       return;
     }
 
@@ -268,30 +392,56 @@ export default function AdminOffersPage() {
       };
     }
 
-    const newOrUpdatedPromo: StoredPromoCode = {
-      id: editingPromo ? editingPromo.id : `promo-${Date.now()}`,
+    const payload = {
       code: pCode.trim().toUpperCase(),
       discount: pDiscountText || (pRuleType === "flat" ? `৳ ${pFlatAmount} ছাড়` : `${pPercent}% ছাড়`),
       condition: pCondition || (pMinOrder > 0 ? `ন্যূনতম ${pMinOrder} টাকার অর্ডারে` : "যেকোনো অর্ডারে"),
       expiry: pExpiryText || "সীমিত সময়ের জন্য",
-      expiresAt: pExpiresAt ? new Date(pExpiresAt).toISOString() : undefined,
+      expiresAt: pExpiresAt ? new Date(pExpiresAt).toISOString() : null,
       description: pDescription || "বিশেষ কুপন ছাড়",
       tag: pTag || "স্পেশাল",
       rule,
-      minOrder: pMinOrder > 0 ? Number(pMinOrder) : undefined,
+      minOrder: pMinOrder > 0 ? Number(pMinOrder) : null,
       isActive: pIsActive,
-      usageCount: editingPromo ? editingPromo.usageCount : 0,
-      createdAt: editingPromo ? editingPromo.createdAt : new Date().toISOString().split("T")[0],
     };
 
-    savePromo(newOrUpdatedPromo);
-    loadData();
-    setIsPromoModalOpen(false);
-    showToast(
-      editingPromo
-        ? `প্রোমো কোড "${newOrUpdatedPromo.code}" সফলভাবে আপডেট হয়েছে!`
-        : `নতুন প্রোমো কোড "${newOrUpdatedPromo.code}" তৈরি হয়েছে!`
-    );
+    try {
+      setIsSaving(true);
+      const url = editingPromo
+        ? `/api/admin/offers/promos/${editingPromo.id}`
+        : `/api/admin/offers/promos`;
+      const method = editingPromo ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
+      await loadData();
+      setIsPromoModalOpen(false);
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: editingPromo ? "প্রোমো কোড আপডেট সম্পন্ন!" : "নতুন প্রোমো কোড তৈরি সম্পন্ন!",
+        message: data.message || `প্রোমো কোড "${payload.code}" সফলভাবে ডেটাবেসে সংরক্ষিত হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "প্রোমো কোড সেভ করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── FLASH MODAL HANDLERS ────────────────────────────────────────────────
@@ -304,7 +454,7 @@ export default function AdminOffersPage() {
     setFOriginalPrice(550);
     setFUnit("১ কেজি মাটির সরা");
     setFBadge("ফ্ল্যাশ সেল");
-    setFImage("/Product/doi.jpg");
+    setFImage("https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg");
     setFTotalStock(40);
     setFSoldCount(12);
     setFIsActive(true);
@@ -336,60 +486,118 @@ export default function AdminOffersPage() {
       setFOriginalPrice(found.price);
       setFPrice(Math.round(found.price * 0.85)); // 15% off by default
       setFUnit(found.unit);
-      setFImage(found.image || "/Product/doi.jpg");
+      setFImage(found.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg");
     }
   };
 
-  const handleSaveFlashDeal = (e: React.FormEvent) => {
+  const handleSaveFlashDeal = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fTitle.trim() || !fSlug.trim()) {
-      alert("দয়া করে পণ্যের নাম ও স্লাগ দিন।");
+      setSweetAlert({
+        isOpen: true,
+        type: "warning",
+        title: "তথ্য অসম্পূর্ণ",
+        message: "দয়া করে পণ্যের নাম ও স্লাগ পূরণ করুন।",
+        confirmButtonText: "ঠিক আছে",
+      });
       return;
     }
 
-    const newOrUpdatedDeal: StoredFlashDeal = {
-      id: editingFlashDeal ? editingFlashDeal.id : `flash-${Date.now()}`,
+    const payload = {
       title: fTitle.trim(),
       slug: fSlug.trim(),
       price: Number(fPrice) || 0,
       originalPrice: Number(fOriginalPrice) || 0,
       unit: fUnit.trim() || "১ প্যাক",
       badge: fBadge.trim() || "ফ্ল্যাশ সেল",
-      image: fImage || "/Product/doi.jpg",
+      image: fImage || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
       soldCount: Number(fSoldCount) || 0,
       totalStock: Number(fTotalStock) || 10,
       isActive: fIsActive,
-      createdAt: editingFlashDeal ? editingFlashDeal.createdAt : new Date().toISOString().split("T")[0],
     };
 
-    saveFlashDeal(newOrUpdatedDeal);
-    loadData();
-    setIsFlashModalOpen(false);
-    showToast(
-      editingFlashDeal
-        ? `ফ্ল্যাশ অফার "${newOrUpdatedDeal.title}" আপডেট হয়েছে!`
-        : `নতুন ফ্ল্যাশ অফার "${newOrUpdatedDeal.title}" যুক্ত হয়েছে!`
-    );
+    try {
+      setIsSaving(true);
+      const url = editingFlashDeal
+        ? `/api/admin/offers/flash/${editingFlashDeal.id}`
+        : `/api/admin/offers/flash`;
+      const method = editingFlashDeal ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
+      await loadData();
+      setIsFlashModalOpen(false);
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: editingFlashDeal ? "ফ্ল্যাশ অফার আপডেট সম্পন্ন!" : "নতুন ফ্ল্যাশ অফার যুক্ত সম্পন্ন!",
+        message: data.message || `ফ্ল্যাশ অফার "${payload.title}" সফলভাবে ক্লাউডিনারি ইমেজসহ সংরক্ষিত হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "ফ্ল্যাশ অফার সেভ করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ── DELETE HANDLER ──────────────────────────────────────────────────────
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.type === "promo") {
-      deletePromo(deleteTarget.id);
-      showToast(`প্রোমো কোড "${deleteTarget.title}" মুছে ফেলা হয়েছে।`);
-    } else {
-      deleteFlashDeal(deleteTarget.id);
-      showToast(`ফ্ল্যাশ ডিল "${deleteTarget.title}" মুছে ফেলা হয়েছে।`);
+    try {
+      setIsSaving(true);
+      const url =
+        deleteTarget.type === "promo"
+          ? `/api/admin/offers/promos/${deleteTarget.id}`
+          : `/api/admin/offers/flash/${deleteTarget.id}`;
+
+      const res = await fetch(url, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "মুছে ফেলা ব্যর্থ হয়েছে");
+      }
+
+      await loadData();
+      const deletedTitle = deleteTarget.title;
+      setDeleteTarget(null);
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "সফলভাবে মুছে ফেলা হয়েছে",
+        message: `"${deletedTitle}" স্থায়ীভাবে মুছে ফেলা হয়েছে।`,
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "মুছে ফেলতে সমস্যা হয়েছে",
+        message: err.message || "আইটেমটি ডিলিট করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsSaving(false);
     }
-    loadData();
-    setDeleteTarget(null);
   };
 
   // ── CAMPAIGN SAVE HANDLER ───────────────────────────────────────────────
-  const handleSaveCampaign = (e: React.FormEvent) => {
+  const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    const updated: CampaignSettings = {
+    const payload = {
       badge: campBadge || "মেগা ডিসকাউন্ট উৎসব",
       title: campTitle || "স্পেশাল",
       highlightText: campHighlight || "ধামাকা অফার",
@@ -397,10 +605,79 @@ export default function AdminOffersPage() {
       campaignEnd: campEnd ? new Date(campEnd).toISOString() : "2026-11-15T23:59:59+06:00",
       bannerActive: campBannerActive,
       announcementText: campAnnouncement,
+      bannerUrl: campBannerUrl,
     };
-    saveCampaignSettings(updated);
-    loadData();
-    showToast("ক্যাম্পেইন ও কাউন্টডাউন টাইমার সেটিংস সংরক্ষিত হয়েছে!");
+
+    try {
+      setIsSaving(true);
+      const res = await fetch("/api/admin/offers/campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "সংরক্ষণ ব্যর্থ হয়েছে");
+      }
+
+      await loadData();
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "ক্যাম্পেইন সেটিংস সংরক্ষিত!",
+        message: "কাউন্টডাউন টাইমার, ব্যানার ও অফার মেসেজ সফলভাবে আপডেট হয়েছে।",
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "ত্রুটি",
+        message: err.message || "ক্যাম্পেইন সেটিংস সেভ করা সম্ভব হয়নি।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ── CLOUDINARY UPLOAD HANDLER ───────────────────────────────────────────
+  const handleUploadImage = async (file: File, target: "flash" | "campaign") => {
+    try {
+      setIsUploadingOfferImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload/offer", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "আপলোড ব্যর্থ হয়েছে");
+      }
+      if (target === "flash") {
+        setFImage(data.url);
+      } else {
+        setCampBannerUrl(data.url);
+      }
+      setSweetAlert({
+        isOpen: true,
+        type: "success",
+        title: "ছবি আপলোড সফল!",
+        message: "ক্লাউডিনারিতে অফার ব্যানার/ছবি সফলভাবে আপলোড হয়েছে।",
+        confirmButtonText: "ঠিক আছে",
+      });
+    } catch (err: any) {
+      setSweetAlert({
+        isOpen: true,
+        type: "error",
+        title: "আপলোড ত্রুটি",
+        message: err.message || "ছবি আপলোড করতে ব্যর্থ হয়েছে।",
+        confirmButtonText: "বুঝেছি",
+      });
+    } finally {
+      setIsUploadingOfferImage(false);
+    }
   };
 
   // ── FILTERED DATA ───────────────────────────────────────────────────────
@@ -448,6 +725,69 @@ export default function AdminOffersPage() {
 
   return (
     <div className="space-y-8 font-bengali pb-24 max-w-7xl mx-auto">
+      {/* SweetAlert Custom Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="admin-sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-black/10 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Feedback */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#351C1B] text-amber-100 px-6 py-3.5 rounded-2xl shadow-2xl border border-amber-600/40 text-sm animate-bounce">
@@ -1194,6 +1534,40 @@ export default function AdminOffersPage() {
               />
             </div>
 
+            {/* Campaign Banner Image & Cloudinary Upload */}
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1.5">
+                ক্যাম্পেইন ব্যানার ছবি (Cloudinary Image)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <input
+                  type="text"
+                  value={campBannerUrl}
+                  onChange={(e) => setCampBannerUrl(e.target.value)}
+                  placeholder="https://res.cloudinary.com/..."
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-stone-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#C48A4E]/30"
+                />
+                <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition cursor-pointer border border-stone-300">
+                  {isUploadingOfferImage ? (
+                    <Loader2 className="w-4 h-4 text-amber-700 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 text-amber-700" />
+                  )}
+                  <span>{isUploadingOfferImage ? "আপলোড হচ্ছে..." : "ব্যানার আপলোড"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={isUploadingOfferImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadImage(file, "campaign");
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
             {/* Preview Card */}
             <div className="rounded-2xl bg-linear-to-br from-[#FBE3C4] via-[#FFF6EA] to-[#F3C89A] p-6 border border-amber-300">
               <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-2 block">
@@ -1725,11 +2099,31 @@ export default function AdminOffersPage() {
                 </div>
               </div>
 
-              {/* Image Preset Selector */}
+              {/* Image Preset Selector & Cloudinary Uploader */}
               <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  পণ্যের ছবি নির্বাচন করুন
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-stone-700">
+                    পণ্যের ছবি (Cloudinary Image)
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-xs text-rose-600 font-bold hover:underline cursor-pointer">
+                    {isUploadingOfferImage ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isUploadingOfferImage ? "আপলোড হচ্ছে..." : "নতুন ছবি আপলোড"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUploadingOfferImage}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadImage(file, "flash");
+                      }}
+                    />
+                  </label>
+                </div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   {PRESET_FLASH_IMAGES.map((img) => (
                     <button
@@ -1746,13 +2140,26 @@ export default function AdminOffersPage() {
                     </button>
                   ))}
                 </div>
-                <input
-                  type="text"
-                  value={fImage}
-                  onChange={(e) => setFImage(e.target.value)}
-                  placeholder="/Product/doi.jpg"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-mono focus:outline-none"
-                />
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={fImage}
+                    onChange={(e) => setFImage(e.target.value)}
+                    placeholder="https://res.cloudinary.com/..."
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs font-mono focus:outline-none"
+                  />
+                  {fImage && (
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-stone-200 shrink-0 bg-stone-50">
+                      <Image
+                        src={fImage}
+                        alt="Preview"
+                        fill
+                        className="object-cover"
+                        unoptimized={fImage.startsWith("http")}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Active Toggle */}

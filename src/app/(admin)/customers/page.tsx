@@ -29,6 +29,8 @@ import {
   Check,
   DollarSign,
   AlertCircle,
+  X,
+  Clock,
 } from "lucide-react";
 import {
   StoredCustomer,
@@ -43,6 +45,8 @@ import { toBnDigits } from "@/lib/bangla";
 
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<StoredCustomer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTier, setSelectedTier] = useState<CustomerTier | "ALL">("ALL");
   const [selectedStatus, setSelectedStatus] = useState<CustomerStatus | "ALL">("ALL");
@@ -51,8 +55,61 @@ export default function AdminCustomersPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<StoredCustomer | null>(null);
 
-  const loadData = () => {
-    setCustomers(getStoredCustomers());
+  // Sweet Alert Modal State
+  const [sweetAlert, setSweetAlert] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "warning";
+    title: string;
+    message: string;
+    confirmButtonText?: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    title: "",
+    message: "",
+    confirmButtonText: "ঠিক আছে",
+  });
+
+  const fireAlert = (options: {
+    type?: "success" | "error" | "warning";
+    title?: string;
+    message: string;
+    confirmButtonText?: string;
+  }) => {
+    setSweetAlert({
+      isOpen: true,
+      type: options.type || "success",
+      title: options.title || (options.type === "error" ? "দুঃখিত!" : "সফল হয়েছে!"),
+      message: options.message,
+      confirmButtonText: options.confirmButtonText || "ঠিক আছে",
+    });
+  };
+
+  useEffect(() => {
+    if (!sweetAlert.isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSweetAlert((prev) => ({ ...prev, isOpen: false }));
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sweetAlert.isOpen]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/customers");
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.customers)) {
+        setCustomers(data.customers);
+      } else {
+        setCustomers(getStoredCustomers());
+      }
+    } catch (err) {
+      console.error("Failed to fetch customers from API, using fallback:", err);
+      setCustomers(getStoredCustomers());
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -72,23 +129,65 @@ export default function AdminCustomersPage() {
     showToast(`ফোন নম্বর কপি করা হয়েছে: ${phone}`);
   };
 
-  const handleToggleStatus = (cust: StoredCustomer, e: React.MouseEvent) => {
+  const handleToggleStatus = async (cust: StoredCustomer, e: React.MouseEvent) => {
     e.stopPropagation();
     const updatedStatus: CustomerStatus = cust.status === "Active" ? "Inactive" : "Active";
-    const updatedCust: StoredCustomer = { ...cust, status: updatedStatus };
-    saveCustomer(updatedCust);
-    loadData();
-    showToast(
-      `${cust.name} কে ${updatedStatus === "Active" ? "সক্রিয়" : "নিষ্ক্রিয়"} করা হয়েছে`
-    );
+    try {
+      const res = await fetch(`/api/admin/customers/${cust.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: updatedStatus }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast(
+          `${cust.name} কে ${updatedStatus === "Active" ? "সক্রিয়" : "নিষ্ক্রিয়"} করা হয়েছে`
+        );
+        loadData();
+      } else {
+        fireAlert({
+          type: "error",
+          title: "পরিবর্তন ব্যর্থ",
+          message: data.error || "স্ট্যাটাস পরিবর্তন করা যায়নি।",
+        });
+      }
+    } catch {
+      showToast("স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে।");
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!customerToDelete) return;
-    deleteCustomer(customerToDelete.id);
-    loadData();
-    showToast(`গ্রাহক "${customerToDelete.name}" মুছে ফেলা হয়েছে`);
-    setCustomerToDelete(null);
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/customers/${customerToDelete.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setCustomerToDelete(null);
+        fireAlert({
+          type: "success",
+          title: "অপসারণ সম্পন্ন!",
+          message: `গ্রাহক "${customerToDelete.name}" কে সফলভাবে মুছে ফেলা হয়েছে।`,
+        });
+        loadData();
+      } else {
+        fireAlert({
+          type: "error",
+          title: "অপসারণ ব্যর্থ",
+          message: data.error || "গ্রাহক মুছে ফেলা সম্ভব হয়নি।",
+        });
+      }
+    } catch {
+      fireAlert({
+        type: "error",
+        title: "নেটওয়ার্ক সমস্যা",
+        message: "সার্ভারে সংযোগ করা যায়নি।",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Metrics
@@ -117,6 +216,69 @@ export default function AdminCustomersPage() {
 
   return (
     <div className="space-y-8 font-bengali pb-20">
+      {/* Sweet Alert Pop-up Modal */}
+      {sweetAlert.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 font-bengali animate-in fade-in duration-200">
+          <div
+            onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+          />
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customers-sweetalert-title"
+            className="relative w-full max-w-sm sm:max-w-md overflow-hidden rounded-3xl bg-white p-6 sm:p-8 text-center shadow-2xl ring-1 ring-black/5 animate-in zoom-in-95 duration-200"
+          >
+            <button
+              type="button"
+              onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+              aria-label="Close"
+              className="absolute right-4 top-4 w-8 h-8 grid place-items-center rounded-full bg-stone-100 text-stone-400 hover:text-stone-600 hover:bg-stone-200 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {sweetAlert.type === "success" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-500 ring-8 ring-emerald-50/60">
+                <CheckCircle2 className="h-10 w-10 animate-bounce duration-700" />
+              </div>
+            )}
+            {sweetAlert.type === "error" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-50 text-red-500 ring-8 ring-red-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+            {sweetAlert.type === "warning" && (
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-amber-50 text-amber-500 ring-8 ring-amber-50/60">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+            )}
+
+            <h3
+              id="customers-sweetalert-title"
+              className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight"
+            >
+              {sweetAlert.title}
+            </h3>
+
+            <p className="mt-2.5 text-sm sm:text-base text-stone-600 font-medium leading-relaxed">
+              {sweetAlert.message}
+            </p>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setSweetAlert((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-linear-to-r from-[#351C1B] to-[#C48A4E] py-3 px-6 text-sm sm:text-base font-bold text-white shadow-lg shadow-black/10 hover:brightness-110 active:scale-98 transition cursor-pointer"
+              >
+                {sweetAlert.confirmButtonText || "ঠিক আছে"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-[#351C1B] text-amber-100 px-5 py-3 rounded-xl shadow-2xl border border-amber-600/30 text-sm animate-bounce">
@@ -141,22 +303,25 @@ export default function AdminCustomersPage() {
             <p className="text-sm text-stone-600 leading-relaxed">
               আপনি কি নিশ্চিত যে আপনি গ্রাহক{" "}
               <strong className="text-stone-900">{customerToDelete.name}</strong>{" "}
-              ({customerToDelete.phone})-কে তালিকা থেকে মুছে ফেলতে চান?
+              (আইডি: {customerToDelete.id})-কে ডাটাবেজ থেকে মুছে ফেলতে চান?
             </p>
             <div className="flex items-center justify-end gap-3 pt-3">
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={() => setCustomerToDelete(null)}
-                className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-xl text-sm font-medium transition-colors"
+                className="px-4 py-2 text-stone-600 hover:bg-stone-100 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer disabled:opacity-50"
               >
                 বাতিল করুন
               </button>
               <button
                 type="button"
+                disabled={isDeleting}
                 onClick={confirmDelete}
-                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm"
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-sm transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                হ্যাঁ, মুছে ফেলুন
+                {isDeleting && <Clock className="w-3.5 h-3.5 animate-spin" />}
+                <span>{isDeleting ? "মুছে ফেলা হচ্ছে..." : "হ্যাঁ, মুছে ফেলুন"}</span>
               </button>
             </div>
           </div>

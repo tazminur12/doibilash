@@ -57,7 +57,7 @@ function LoginContent() {
   const [forgotPhone, setForgotPhone] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -72,8 +72,8 @@ function LoginContent() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = loginUser(phoneOrEmail, password);
+    try {
+      const res = await loginUser(phoneOrEmail, password);
       if (res.ok) {
         setSuccessMsg(`স্বাগতম, ${res.user.name}! লগইন সফল হয়েছে।`);
         setTimeout(() => {
@@ -83,7 +83,10 @@ function LoginContent() {
         setError(res.error);
         setIsLoading(false);
       }
-    }, 700);
+    } catch {
+      setError("লগইন করতে ব্যর্থ হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      setIsLoading(false);
+    }
   };
 
   const handleDemoLogin = () => {

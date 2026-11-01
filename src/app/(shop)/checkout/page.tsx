@@ -178,7 +178,33 @@ export default function CheckoutPage() {
           .filter((p) => p.isActive !== false && !isPromoExpired(p, now))
           .slice(0, 4);
 
-  const applyCoupon = (code: string) => {
+  const applyCoupon = async (code: string) => {
+    try {
+      const res = await fetch("/api/offers/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          items,
+          subtotal,
+          insideDhaka,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setAppliedPromo(data.promo);
+        setCouponCode(data.promo.code);
+        setCouponError("");
+        return;
+      } else if (!res.ok && data.error) {
+        setAppliedPromo(null);
+        setCouponError(data.error);
+        return;
+      }
+    } catch {
+      // Fallback to local evaluatePromo below
+    }
+
     const result = evaluatePromo(code, promoCtx);
     if (result.ok) {
       setAppliedPromo(result.promo);

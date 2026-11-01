@@ -1,0 +1,239 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String
+  phone           String   @unique
+  email           String?  @unique
+  passwordHash    String   @map("password_hash")
+  avatarUrl       String?  @map("avatar_url")
+  city            String?  @default("ঢাকা সিটি")
+  address         String?  @default("")
+  shippingAddress Json?    @map("shipping_address")
+  billingAddress  Json?    @map("billing_address")
+  role            Role     @default(CUSTOMER)
+  orders          Order[]
+  customer        Customer?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([phone])
+  @@index([email])
+  @@map("users")
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique @map("order_number")
+  userId          String?     @map("user_id")
+  customerName    String      @map("customer_name")
+  customerPhone   String      @map("customer_phone")
+  customerEmail   String?     @map("customer_email")
+  shippingAddress Json        @map("shipping_address")
+  billingAddress  Json?       @map("billing_address")
+  status          OrderStatus @default(PROCESSING)
+  deliveryMethod  String      @default("হোম ডেলিভারি") @map("delivery_method")
+  paymentMethod   String      @default("ক্যাশ অন ডেলিভারি") @map("payment_method")
+  paymentStatus   String      @default("Unpaid") @map("payment_status")
+  deliveryCharge  Float       @default(60) @map("delivery_charge")
+  discount        Float       @default(0)
+  totalAmount     Float       @map("total_amount")
+  items           Json
+  notes           String?
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([customerPhone])
+  @@map("orders")
+}
+
+model TeamMember {
+  id             String    @id @default(uuid())
+  name           String
+  email          String    @unique
+  phone          String    @unique
+  role           String    @default("Staff")
+  designation    String    @default("টিম মেম্বার")
+  status         String    @default("Active")
+  avatarUrl      String?   @map("avatar_url")
+  avatarInitials String    @default("TM") @map("avatar_initials")
+  permissions    Json      @default("[]")
+  passwordHash   String?   @map("password_hash")
+  notes          String?
+  lastLogin      DateTime? @map("last_login")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@index([status])
+  @@map("team_members")
+}
+
+model StoreSetting {
+  id        String   @id @default("default")
+  data      Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
+model Customer {
+  id             String    @id @default(uuid())
+  name           String
+  phone          String    @unique
+  email          String?   @unique
+  address        String?   @default("")
+  city           String?   @default("ঢাকা সিটি")
+  tier           String    @default("Regular")
+  status         String    @default("Active")
+  totalOrders    Int       @default(0) @map("total_orders")
+  totalSpent     Float     @default(0) @map("total_spent")
+  notes          String?
+  preferences    Json      @default("[]")
+  avatarUrl      String?   @map("avatar_url")
+  avatarInitials String?   @map("avatar_initials")
+  userId         String?   @unique @map("user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phone])
+  @@index([tier])
+  @@index([status])
+  @@map("customers")
+}
+
+model PromoCode {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  discount    String
+  condition   String
+  expiry      String
+  expiresAt   DateTime? @map("expires_at")
+  description String
+  tag         String    @default("স্পেশাল")
+  rule        Json
+  minOrder    Float?    @map("min_order")
+  requires    Json?
+  isActive    Boolean   @default(true) @map("is_active")
+  usageCount  Int       @default(0) @map("usage_count")
+  maxUsage    Int?      @map("max_usage")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([code])
+  @@index([isActive])
+  @@map("promo_codes")
+}
+
+model FlashDeal {
+  id            String   @id @default(uuid())
+  slug          String
+  title         String
+  price         Float
+  originalPrice Float    @map("original_price")
+  unit          String
+  badge         String   @default("ফ্ল্যাশ সেল")
+  image         String
+  soldCount     Int      @default(0) @map("sold_count")
+  totalStock    Int      @default(10) @map("total_stock")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("flash_deals")
+}
+
+model CampaignSetting {
+  id               String    @id @default("default")
+  badge            String    @default("মেগা ডিসকাউন্ট উৎসব")
+  title            String    @default("স্পেশাল")
+  highlightText    String    @default("ধামাকা অফার") @map("highlight_text")
+  description      String    @default("সীমিত সময়ের জন্য সেরা দামে খাঁটি পণ্য।")
+  campaignEnd      DateTime? @map("campaign_end")
+  bannerActive     Boolean   @default(true) @map("banner_active")
+  announcementText String?   @map("announcement_text")
+  bannerUrl        String?   @map("banner_url")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@map("campaign_settings")
+}
+
+model GiftPackage {
+  id                    String   @id @default(uuid())
+  title                 String
+  subtitle              String
+  occasion              String   @default("ঈদ উৎসব")
+  packagingType         String   @map("packaging_type")
+  price                 Float
+  originalPrice         Float    @map("original_price")
+  discountPercent       Int?     @map("discount_percent")
+  badge                 String   @default("উৎসব স্পেশাল")
+  image                 String
+  features              Json     @default("[]")
+  components            Json     @default("[]")
+  isFeatured            Boolean  @default(false) @map("is_featured")
+  status                String   @default("Active")
+  availableStock        Int      @default(50) @map("available_stock")
+  customGreetingAllowed Boolean  @default(true) @map("custom_greeting_allowed")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([occasion])
+  @@index([status])
+  @@index([isFeatured])
+  @@map("gift_packages")
+}
+
+model Category {
+  id            String   @id @default(uuid())
+  slug          String   @unique
+  name          String
+  nameBn        String   @map("name_bn")
+  subtitle      String   @default("")
+  description   String   @default("")
+  image         String
+  totalProducts Int      @default(0) @map("total_products")
+  highlights    Json     @default("[]")
+  tags          Json     @default("[]")
+  productSlugs  Json     @default("[]") @map("product_slugs")
+  isFeatured    Boolean  @default(false) @map("is_featured")
+  status        String   @default("active")
+  order         Int      @default(0)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@index([status])
+  @@index([isFeatured])
+  @@map("categories")
+}
+
+
+

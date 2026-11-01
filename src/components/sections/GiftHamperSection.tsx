@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Gift, Check, ShoppingBag, ChevronRight, Crown, Building2, ArrowRight } from "lucide-react";
@@ -20,13 +20,13 @@ interface HamperItem {
 
 const HAMPERS: HamperItem[] = [
   {
-    id: "hamper-1",
+    id: "PKG-101",
     title: "শাহী সরা উপহার প্যাকেজ",
     subtitle: "বিয়ে, জন্মদিন ও পারিবারিক অনুষ্ঠানের জন্য",
     price: 1850,
     originalPrice: 2150,
     badge: "সবচেয়ে জনপ্রিয়",
-    image: "/Product/doi.jpg",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
     featured: true,
     features: [
       "১ কেজি বগুড়ার স্পেশাল সরার দই",
@@ -36,13 +36,13 @@ const HAMPERS: HamperItem[] = [
     ],
   },
   {
-    id: "hamper-2",
+    id: "PKG-102",
     title: "আনন্দ মিষ্টিমুখ কম্বো বক্স",
     subtitle: "পারিবারিক অতিথি আপ্যায়নে আদর্শ",
     price: 1450,
     originalPrice: 1680,
     badge: "উৎসব স্পেশাল",
-    image: "/Product/laccha_semai.jpg",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg",
     features: [
       "১ কেজি ঐতিহ্যবাহী মাটির হাঁড়ির মিষ্টি দই",
       "১ কেজি নরম স্পঞ্জ রসগোল্লা",
@@ -51,13 +51,13 @@ const HAMPERS: HamperItem[] = [
     ],
   },
   {
-    id: "hamper-3",
+    id: "PKG-103",
     title: "কর্পোরেট রয়্যাল গিফট হ্যাম্পার",
     subtitle: "ব্যবসায়িক ক্লায়েন্ট ও কর্মীদের বিশেষ উপহার",
     price: 2450,
     originalPrice: 2800,
     badge: "কর্পোরেট চয়েস",
-    image: "/Product/mini_doi.png",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png",
     features: [
       "২টি মাটির স্পেশাল কাপ দই সেট",
       "১ কেজি মতিচুর স্পেশাল লাড্ডু",
@@ -71,6 +71,39 @@ const formatTaka = (amount: number) => `৳ ${amount.toLocaleString("en-US")}`;
 
 export default function GiftHamperSection() {
   const { addItem, openCart } = useCart();
+  const [hampers, setHampers] = useState<HamperItem[]>(HAMPERS);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLiveHampers = async () => {
+      try {
+        const res = await fetch("/api/packages");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && Array.isArray(json.packages) && json.packages.length > 0 && isMounted) {
+            const mapped: HamperItem[] = json.packages.slice(0, 3).map((p: any) => ({
+              id: p.id,
+              title: p.title,
+              subtitle: p.subtitle,
+              price: p.price,
+              originalPrice: p.originalPrice || p.price,
+              badge: p.badge || "উৎসব স্পেশাল",
+              image: p.image || "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+              features: Array.isArray(p.features) ? p.features : [],
+              featured: Boolean(p.isFeatured),
+            }));
+            setHampers(mapped);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load live gift hampers:", err);
+      }
+    };
+    fetchLiveHampers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleOrderHamper = (hamper: HamperItem) => {
     addItem({
@@ -116,7 +149,7 @@ export default function GiftHamperSection() {
 
         {/* Hamper Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
-          {HAMPERS.map((hamper) => {
+          {hampers.map((hamper) => {
             const savings = hamper.originalPrice - hamper.price;
             return (
               <div

@@ -1,0 +1,152 @@
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
+const PACKAGES = [
+  {
+    id: "PKG-101",
+    title: "শাহী সরা উপহার প্যাকেজ",
+    subtitle: "বিয়ে, জন্মদিন ও পারিবারিক অনুষ্ঠানের জন্য রাজকীয় উপহার",
+    occasion: "বিয়ে ও পারিবারিক",
+    packagingType: "রয়েল গোল্ডেন ফিতা ও সিল্ক গ্রিটিংস বক্স",
+    price: 1850,
+    originalPrice: 2150,
+    discountPercent: 14,
+    badge: "সবচেয়ে জনপ্রিয়",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+    isFeatured: true,
+    status: "Active",
+    availableStock: 45,
+    customGreetingAllowed: true,
+    features: [
+      "১ কেজি বগুড়ার স্পেশাল সরার মিষ্টি দই",
+      "৫০০ গ্রাম খাঁটি দানাদার গাওয়া ঘি",
+      "২৫০ গ্রাম সুন্দরবনের প্রাকৃতিক মধু",
+      "রয়েল গোল্ডেন ফিতা ও ক্যালিগ্রাফি গ্রিটিংস কার্ড",
+    ],
+    components: [
+      { productId: "PROD-001", name: "বগুড়ার স্পেশাল সরার দই", quantity: "১ কেজি" },
+      { productId: "PROD-002", name: "খাঁটি দানাদার গাওয়া ঘি", quantity: "৫০০ গ্রাম" },
+      { name: "সুন্দরবনের প্রাকৃতিক মধু", quantity: "২৫০ গ্রাম" },
+    ],
+  },
+  {
+    id: "PKG-102",
+    title: "আনন্দ মিষ্টিমুখ কম্বো বক্স",
+    subtitle: "পারিবারিক মেহমান ও উৎসবের শুভক্ষণে অতিথি আপ্যায়নে আদর্শ",
+    occasion: "ঈদ উৎসব",
+    packagingType: "প্রিমিয়াম ফেস্টিভ্যাল গোল্ড কার্টন",
+    price: 1450,
+    originalPrice: 1680,
+    discountPercent: 14,
+    badge: "উৎসব স্পেশাল",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515855/doibilash/offers/laccha_semai.jpg",
+    isFeatured: true,
+    status: "Active",
+    availableStock: 60,
+    customGreetingAllowed: true,
+    features: [
+      "১ কেজি ঐতিহ্যবাহী মাটির হাঁড়ির মিষ্টি দই",
+      "১ কেজি নরম স্পঞ্জ রসগোল্লা",
+      "৫০০ গ্রাম ঘিয়ে ভাজা প্রিমিয়াম লাচ্ছা সেমাই",
+      "উৎসবমুখর ফেস্টিভ্যাল গিফট বক্স প্যাকেজিং",
+    ],
+    components: [
+      { name: "মাটির হাঁড়ির মিষ্টি দই", quantity: "১ কেজি" },
+      { name: "নরম স্পঞ্জ রসগোল্লা", quantity: "১ কেজি" },
+      { name: "ঘিয়ে ভাজা লাচ্ছা সেমাই", quantity: "৫০০ গ্রাম" },
+    ],
+  },
+  {
+    id: "PKG-103",
+    title: "কর্পোরেট রয়্যাল গিফট হ্যাম্পার",
+    subtitle: "সম্মানিত ব্যবসায়ী ক্লায়েন্ট ও কর্মকর্তাদের বিশেষ শুভেচ্ছা উপহার",
+    occasion: "কর্পোরেট উপহার",
+    packagingType: "কাস্টম ব্র্যান্ডেড কাঠের লাক্সারি গিফট চেস্ট",
+    price: 2450,
+    originalPrice: 2800,
+    discountPercent: 12,
+    badge: "কর্পোরেট চয়েস",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515856/doibilash/offers/mini_doi.png",
+    isFeatured: true,
+    status: "Active",
+    availableStock: 25,
+    customGreetingAllowed: true,
+    features: [
+      "৪টি ঐতিহ্যবাহী মাটির কাপ দই সেট",
+      "১ কেজি মতিচুর স্পেশাল রাজকীয় লাড্ডু",
+      "৫০০ গ্রাম প্রিমিয়াম দানাদার ঘি",
+      "কাস্টম ব্র্যান্ডেড কাঠের লাক্সারি বক্স ও সিল্ক ফিতা",
+    ],
+    components: [
+      { name: "মাটির কাপ দই সেট", quantity: "৪ পিস" },
+      { name: "মতিচুর লাড্ডু", quantity: "১ কেজি" },
+      { name: "খাঁটি দানাদার ঘি", quantity: "৫০০ গ্রাম" },
+    ],
+  },
+  {
+    id: "PKG-104",
+    title: "বৈশাখী মিষ্টান্ন মেলা সম্ভার",
+    subtitle: "পহেলা বৈশাখের প্রথম প্রহরে আত্মীয়স্বজনদের মিষ্টান্ন উপহার",
+    occasion: "পহেলা বৈশাখ",
+    packagingType: "ঐতিহ্যবাহী নকশিকাঁথা মোটিফ হ্যান্ডমেড বক্স",
+    price: 1950,
+    originalPrice: 2300,
+    discountPercent: 15,
+    badge: "বৈশাখ অফার",
+    image: "https://res.cloudinary.com/cwihms31/image/upload/v1793515853/doibilash/offers/doi_special.jpg",
+    isFeatured: false,
+    status: "Active",
+    availableStock: 30,
+    customGreetingAllowed: true,
+    features: [
+      "১.৫ কেজি বগুড়ার আসল লাল সরার দই",
+      "১ কেজি ঐতিহ্যবাহী চমচম",
+      "মাটির প্লেট ও চামচ সেট সম্পূর্ণ ফ্রি",
+    ],
+    components: [
+      { name: "বগুড়ার লাল সরার দই", quantity: "১.৫ কেজি" },
+      { name: "ঐতিহ্যবাহী চমচম", quantity: "১ কেজি" },
+    ],
+  },
+];
+
+async function main() {
+  console.log("Seeding Gift Packages into Supabase PostgreSQL...");
+
+  for (const pkg of PACKAGES) {
+    await prisma.giftPackage.upsert({
+      where: { id: pkg.id },
+      update: {
+        title: pkg.title,
+        subtitle: pkg.subtitle,
+        occasion: pkg.occasion,
+        packagingType: pkg.packagingType,
+        price: pkg.price,
+        originalPrice: pkg.originalPrice,
+        discountPercent: pkg.discountPercent,
+        badge: pkg.badge,
+        image: pkg.image,
+        features: pkg.features,
+        components: pkg.components,
+        isFeatured: pkg.isFeatured,
+        status: pkg.status,
+        availableStock: pkg.availableStock,
+        customGreetingAllowed: pkg.customGreetingAllowed,
+      },
+      create: pkg,
+    });
+  }
+
+  const count = await prisma.giftPackage.count();
+  console.log(`✓ Successfully seeded ${count} Gift Packages in Supabase!`);
+}
+
+main()
+  .catch((e) => {
+    console.error("Failed to seed packages:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
+

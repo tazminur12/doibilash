@@ -79,7 +79,7 @@ function RegisterContent() {
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
   const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -107,8 +107,8 @@ function RegisterContent() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const res = registerUser({
+    try {
+      const res = await registerUser({
         name,
         phone: cleanPhone,
         email,
@@ -124,7 +124,10 @@ function RegisterContent() {
         setError(res.error);
         setIsLoading(false);
       }
-    }, 750);
+    } catch {
+      setError("রেজিস্ট্রেশন করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।");
+      setIsLoading(false);
+    }
   };
 
   return (
