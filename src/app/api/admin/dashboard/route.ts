@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { mapPrismaOrderToStored } from "@/lib/orderService";
+import { mapPrismaOrderToStored, settleDeliveredPayments } from "@/lib/orderService";
 import type { StoredOrder } from "@/lib/orderStorage";
 import type { StoredProduct } from "@/lib/productStorage";
 import type { CorporateOrder } from "@/lib/corporateOrderStorage";
@@ -62,6 +62,7 @@ function buildWeeklySeries(orders: { createdAt: Date; totalAmount: number }[]) {
 
 export async function GET() {
   try {
+    await settleDeliveredPayments();
     const [
       orderRows,
       productCount,

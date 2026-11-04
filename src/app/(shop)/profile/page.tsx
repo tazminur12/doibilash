@@ -20,6 +20,7 @@ import {
   Mail,
   Lock,
   Edit3,
+  Plus,
   Check,
   ShieldCheck,
   X,
@@ -78,58 +79,25 @@ interface AddressData {
   city: string;
 }
 
-// ─── Dummy Data ─────────────────────────────────────────────────────────────
+const DEMO_ADDRESS = "ফ্ল্যাট ৪বি, বাড়ি ২৫, রোড ৭, সেক্টর ৪, উত্তরা";
 
-const DUMMY_ORDERS: Order[] = [
-  {
-    id: "#DB-1029",
-    date: "১৫ অক্টোবর, ২০২৬",
-    status: "Shipped",
-    deliveryMethod: "হোম ডেলিভারি (ঢাকা সিটি)",
-    paymentMethod: "ক্যাশ অন ডেলিভারি",
-    deliveryCharge: 60,
-    items: [
-      { name: "বগুড়ার স্পেশাল সরার দই", qty: 2, price: 500, image: "/Product/doi.jpg" },
-      {
-        name: "খাঁটি গাওয়া ঘি",
-        qty: 1,
-        price: 1450,
-        image: "/Product/placeholder.svg",
-      },
-    ],
-  },
-  {
-    id: "#DB-1024",
-    date: "১০ অক্টোবর, ২০২৬",
-    status: "Delivered",
-    deliveryMethod: "এক্সপ্রেস ডেলিভারি",
-    paymentMethod: "বিকাশ",
-    deliveryCharge: 60,
-    items: [
-      {
-        name: "সুন্দরবনের প্রাকৃতিক মধু",
-        qty: 1,
-        price: 850,
-        image: "/Product/placeholder.svg",
-      },
-      {
-        name: "প্রিমিয়াম খোরমা খেজুর",
-        qty: 2,
-        price: 750,
-        image: "/Product/placeholder.svg",
-      },
-    ],
-  },
-  {
-    id: "#DB-1018",
-    date: "০২ অক্টোবর, ২০২৬",
-    status: "Delivered",
-    deliveryMethod: "স্ট্যান্ডার্ড ডেলিভারি",
-    paymentMethod: "ক্যাশ অন ডেলিভারি",
-    deliveryCharge: 60,
-    items: [{ name: "স্পেশাল মাটির কাপ দই (৪ পিস)", qty: 3, price: 420, image: "/Product/mini_doi.png" }],
-  },
-];
+function isDemoAddress(address: { fullAddress?: string } | null | undefined): boolean {
+  return (address?.fullAddress || "").trim() === DEMO_ADDRESS;
+}
+
+function toSavedAddress(raw: unknown, title: string): AddressData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Partial<AddressData>;
+  const fullAddress = typeof data.fullAddress === "string" ? data.fullAddress.trim() : "";
+  if (!fullAddress || fullAddress === DEMO_ADDRESS) return null;
+  return {
+    title: data.title || title,
+    name: typeof data.name === "string" ? data.name : "",
+    phone: typeof data.phone === "string" ? data.phone : "",
+    fullAddress,
+    city: typeof data.city === "string" ? data.city : "",
+  };
+}
 
 const STATUS_CONFIG: Record<OrderStatus, { labelBn: string; classes: string; dot: string; icon: React.ElementType; step: number }> = {
   Processing: {
@@ -326,22 +294,11 @@ export default function ProfileDashboard() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [toast, setToast] = useState("");
 
-  const [addresses, setAddresses] = useState<Record<AddressKey, AddressData>>({
-    shipping: {
-      title: "শিপিং ঠিকানা",
-      name: "রহিম উদ্দিন",
-      phone: "+880 1712-345678",
-      fullAddress: "ফ্ল্যাট ৪বি, বাড়ি ২৫, রোড ৭, সেক্টর ৪, উত্তরা",
-      city: "ঢাকা - ১২৩০",
-    },
-    billing: {
-      title: "বিলিং ঠিকানা",
-      name: "রহিম উদ্দিন",
-      phone: "+880 1712-345678",
-      fullAddress: "ফ্ল্যাট ৪বি, বাড়ি ২৫, রোড ৭, সেক্টর ৪, উত্তরা",
-      city: "ঢাকা - ১২৩০",
-    },
+  const [addresses, setAddresses] = useState<Record<AddressKey, AddressData | null>>({
+    shipping: null,
+    billing: null,
   });
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
   const [editingAddressKey, setEditingAddressKey] = useState<AddressKey | null>(null);
   const [tempAddress, setTempAddress] = useState<AddressData | null>(null);
 
@@ -408,40 +365,40 @@ export default function ProfileDashboard() {
     initialProfileRef.current = { name, email, phone };
     if (user.avatarUrl) setAvatarUrl(user.avatarUrl);
 
-    if (user.shippingAddress && typeof user.shippingAddress === "object" && user.shippingAddress.fullAddress) {
-      setAddresses((prev) => ({
-        ...prev,
-        shipping: user.shippingAddress,
-      }));
-    } else if (user.address || user.name) {
-      setAddresses((prev) => ({
-        ...prev,
-        shipping: {
-          title: "শিপিং ঠিকানা",
-          name: user.name || prev.shipping.name,
-          phone: user.phone || prev.shipping.phone,
-          fullAddress: user.address || prev.shipping.fullAddress,
-          city: user.city || prev.shipping.city,
-        },
-      }));
-    }
+    const plainAddress = typeof user.address === "string" ? user.address.trim() : "";
+    const shipping =
+      toSavedAddress(user.shippingAddress, "শিপিং ঠিকানা") ??
+      (plainAddress && plainAddress !== DEMO_ADDRESS
+        ? {
+            title: "শিপিং ঠিকানা",
+            name: user.name || "",
+            phone: user.phone || "",
+            fullAddress: plainAddress,
+            city: user.city || "",
+          }
+        : null);
+    const billing = toSavedAddress(user.billingAddress, "বিলিং ঠিকানা");
+    setAddresses({ shipping, billing });
+    setIsLoadingAddresses(false);
 
-    if (user.billingAddress && typeof user.billingAddress === "object" && user.billingAddress.fullAddress) {
-      setAddresses((prev) => ({
-        ...prev,
-        billing: user.billingAddress,
-      }));
-    } else if (user.address || user.name) {
-      setAddresses((prev) => ({
-        ...prev,
-        billing: {
-          title: "বিলিং ঠিকানা",
-          name: user.name || prev.billing.name,
-          phone: user.phone || prev.billing.phone,
-          fullAddress: user.address || prev.billing.fullAddress,
-          city: user.city || prev.billing.city,
-        },
-      }));
+    const shippingIsDemo = isDemoAddress(user.shippingAddress);
+    const plainIsDemo = plainAddress === DEMO_ADDRESS;
+    const billingIsDemo = isDemoAddress(user.billingAddress);
+    if (shippingIsDemo || plainIsDemo || billingIsDemo) {
+      const payload: Record<string, unknown> = {};
+      if (shippingIsDemo) payload.shippingAddress = null;
+      if (plainIsDemo) payload.address = "";
+      if (billingIsDemo) payload.billingAddress = null;
+      authFetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.user) setCurrentUser(data.user);
+        })
+        .catch((err) => console.error("Failed to clear demo address", err));
     }
   };
 
@@ -603,20 +560,39 @@ export default function ProfileDashboard() {
     }
   };
 
+  const openAddressEditor = (key: AddressKey) => {
+    const existing = addresses[key];
+    const phone = profileData.phone && !profileData.phone.includes("X") ? profileData.phone : "";
+    const name = profileData.name && profileData.name !== "সম্মানিত গ্রাহক" ? profileData.name : "";
+    setEditingAddressKey(key);
+    setTempAddress(
+      existing
+        ? { ...existing }
+        : {
+            title: key === "shipping" ? "শিপিং ঠিকানা" : "বিলিং ঠিকানা",
+            name,
+            phone,
+            fullAddress: "",
+            city: "",
+          }
+    );
+  };
+
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingAddressKey && tempAddress) {
       const label = editingAddressKey === "shipping" ? "শিপিং ঠিকানা" : "বিলিং ঠিকানা";
-      setAddresses((prev) => ({ ...prev, [editingAddressKey]: tempAddress }));
+      if (!tempAddress.fullAddress.trim()) return;
 
       try {
+        const saved = { ...tempAddress, fullAddress: tempAddress.fullAddress.trim() };
         const payload: Record<string, unknown> = {};
         if (editingAddressKey === "shipping") {
-          payload.shippingAddress = tempAddress;
-          payload.address = tempAddress.fullAddress;
-          payload.city = tempAddress.city;
+          payload.shippingAddress = saved;
+          payload.address = saved.fullAddress;
+          payload.city = saved.city;
         } else {
-          payload.billingAddress = tempAddress;
+          payload.billingAddress = saved;
         }
 
         const res = await authFetch("/api/auth/me", {
@@ -626,28 +602,42 @@ export default function ProfileDashboard() {
         });
 
         const data = await res.json();
+        if (!res.ok || !data.ok) {
+          fireAlert({
+            type: "error",
+            title: "ব্যর্থ হয়েছে",
+            message: data.error || `${label} সংরক্ষণ করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।`,
+          });
+          return;
+        }
+
         if (data.token) {
           setAuthToken(data.token);
         }
 
-        const user = getCurrentUser();
-        if (user && editingAddressKey === "shipping") {
-          setCurrentUser({
-            ...user,
-            address: tempAddress.fullAddress,
-            city: tempAddress.city,
-          });
+        if (data.user) {
+          setCurrentUser(data.user);
+        } else {
+          const user = getCurrentUser();
+          if (user) {
+            setCurrentUser({
+              ...user,
+              ...(editingAddressKey === "shipping"
+                ? { address: saved.fullAddress, city: saved.city, shippingAddress: saved }
+                : { billingAddress: saved }),
+            });
+          }
         }
 
+        setAddresses((prev) => ({ ...prev, [editingAddressKey]: saved }));
         closeAddressModal();
         fireAlert({
           type: "success",
           title: "সফল হয়েছে!",
-          message: `আপনার ${label} সফলভাবে সম্পূর্ণ করা হয়েছে।`,
+          message: `আপনার ${label} সংরক্ষণ করা হয়েছে।`,
         });
       } catch (err) {
         console.error("Failed to sync address with Supabase", err);
-        closeAddressModal();
         fireAlert({
           type: "error",
           title: "ব্যর্থ হয়েছে",
@@ -1275,8 +1265,14 @@ export default function ProfileDashboard() {
                   <span className="mx-auto w-16 h-16 grid place-items-center rounded-full bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent ring-8 ring-[#FBF1E4]">
                     <Package className="w-7 h-7" />
                   </span>
-                  <h3 className="mt-5 text-base font-bold">কোনো অর্ডার পাওয়া যায়নি</h3>
-                  <p className="mt-1 text-xs text-stone-500">এই ফিল্টারে বর্তমানে কোনো অর্ডার নেই।</p>
+                  <h3 className="mt-5 text-base font-bold">
+                    {orders.length === 0 ? "এখনো কোনো অর্ডার নেই" : "কোনো অর্ডার পাওয়া যায়নি"}
+                  </h3>
+                  <p className="mt-1 text-xs text-stone-500">
+                    {orders.length === 0
+                      ? "আপনি অর্ডার করলে সেগুলো এখানে দেখা যাবে।"
+                      : "এই ফিল্টারে বর্তমানে কোনো অর্ডার নেই।"}
+                  </p>
                 </div>
               )}
             </div>
@@ -1290,57 +1286,80 @@ export default function ProfileDashboard() {
                 <p className="mt-1 text-xs sm:text-sm text-stone-500">পণ্য ডেলিভারি ও চালানের জন্য আপনার সংরক্ষিত ঠিকানা</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {(["shipping", "billing"] as AddressKey[]).map((key) => {
-                  const address = addresses[key];
-                  const Icon = key === "shipping" ? Home : Receipt;
-                  return (
-                    <div key={key} className={`${cardClass} p-5 sm:p-6 flex flex-col`}>
-                      <div className="flex items-center justify-between">
-                        <span className="inline-flex items-center gap-2 text-sm font-bold">
-                          <span className="w-9 h-9 grid place-items-center rounded-xl bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent">
-                            <Icon className="w-4 h-4" />
+              {isLoadingAddresses ? (
+                <div className={`${cardClass} p-12 text-center flex flex-col items-center justify-center gap-3`}>
+                  <Loader2 className="w-8 h-8 text-doibrand-accent animate-spin" />
+                  <p className="text-sm font-semibold text-stone-600">আপনার সংরক্ষিত ঠিকানা লোড হচ্ছে...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {(["shipping", "billing"] as AddressKey[]).map((key) => {
+                    const address = addresses[key];
+                    const Icon = key === "shipping" ? Home : Receipt;
+                    const title = key === "shipping" ? "শিপিং ঠিকানা" : "বিলিং ঠিকানা";
+                    return (
+                      <div key={key} className={`${cardClass} p-5 sm:p-6 flex flex-col`}>
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex items-center gap-2 text-sm font-bold">
+                            <span className="w-9 h-9 grid place-items-center rounded-xl bg-linear-to-br from-[#FBEBD2] to-[#EFCF9E] text-doibrand-accent">
+                              <Icon className="w-4 h-4" />
+                            </span>
+                            {address?.title || title}
                           </span>
-                          {address.title}
-                        </span>
-                        <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/70">
-                          ডিফল্ট
-                        </span>
+                          {address && (
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/70">
+                              সংরক্ষিত
+                            </span>
+                          )}
+                        </div>
+                        {address ? (
+                          <div className="mt-5 flex-1 rounded-2xl bg-[#FFF9F1] p-4 ring-1 ring-doibrand-gold/15">
+                            <p className="text-base font-bold">{address.name}</p>
+                            {address.phone && (
+                              <p className="mt-1 flex items-center gap-1.5 text-xs text-stone-500 font-sans">
+                                <Phone className="w-3.5 h-3.5 text-doibrand-gold" />
+                                {address.phone}
+                              </p>
+                            )}
+                            <p className="mt-3 flex items-start gap-1.5 text-sm leading-relaxed text-stone-600">
+                              <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-doibrand-gold" />
+                              <span>
+                                {address.fullAddress}
+                                {address.city && (
+                                  <span className="block font-semibold text-doibrand-dark">{address.city}</span>
+                                )}
+                              </span>
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="mt-5 flex-1 rounded-2xl bg-[#FFF9F1] p-6 text-center ring-1 ring-doibrand-gold/15">
+                            <span className="mx-auto w-12 h-12 grid place-items-center rounded-full bg-white text-doibrand-accent ring-1 ring-doibrand-gold/20">
+                              <MapPin className="w-5 h-5" />
+                            </span>
+                            <p className="mt-3 text-sm font-bold">কোনো ঠিকানা সংরক্ষিত নেই</p>
+                            <p className="mt-1 text-xs text-stone-500">আপনি ঠিকানা যোগ করলে সেটি এখানে দেখা যাবে।</p>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          id={`btn-edit-${key}`}
+                          onClick={() => openAddressEditor(key)}
+                          className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-[#FBF1E4] py-2.5 text-sm font-bold text-doibrand-accent ring-1 ring-doibrand-gold/30 hover:bg-linear-to-r hover:from-doibrand-accent hover:to-doibrand-gold hover:text-white hover:ring-transparent transition cursor-pointer"
+                        >
+                          {address ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          {address ? "এডিট করুন" : "ঠিকানা যোগ করুন"}
+                        </button>
                       </div>
-                      <div className="mt-5 flex-1 rounded-2xl bg-[#FFF9F1] p-4 ring-1 ring-doibrand-gold/15">
-                        <p className="text-base font-bold">{address.name}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-stone-500 font-sans">
-                          <Phone className="w-3.5 h-3.5 text-doibrand-gold" />
-                          {address.phone}
-                        </p>
-                        <p className="mt-3 flex items-start gap-1.5 text-sm leading-relaxed text-stone-600">
-                          <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-doibrand-gold" />
-                          <span>
-                            {address.fullAddress}
-                            <span className="block font-semibold text-doibrand-dark">{address.city}</span>
-                          </span>
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        id={`btn-edit-${key}`}
-                        onClick={() => {
-                          setEditingAddressKey(key);
-                          setTempAddress({ ...address });
-                        }}
-                        className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl bg-[#FBF1E4] py-2.5 text-sm font-bold text-doibrand-accent ring-1 ring-doibrand-gold/30 hover:bg-linear-to-r hover:from-doibrand-accent hover:to-doibrand-gold hover:text-white hover:ring-transparent transition cursor-pointer"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                        এডিট করুন
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="flex items-start gap-3 rounded-2xl bg-linear-to-br from-[#FFF6E9] via-[#FFFDF9] to-[#F8E7CF] p-4 ring-1 ring-doibrand-gold/20 text-xs text-stone-600">
                 <AlertCircle className="w-4 h-4 shrink-0 text-doibrand-gold" />
-                চেকআউটের সময় আপনার ডিফল্ট শিপিং ঠিকানাটি স্বয়ংক্রিয়ভাবে পূরণ হবে। দ্রুত ডেলিভারির জন্য সঠিক ঠিকানা ও সচল মোবাইল নম্বর রাখুন।
+                {addresses.shipping
+                  ? "চেকআউটের সময় আপনার সংরক্ষিত শিপিং ঠিকানাটি পূরণ হবে। দ্রুত ডেলিভারির জন্য সঠিক ঠিকানা ও সচল মোবাইল নম্বর রাখুন।"
+                  : "শিপিং ঠিকানা সংরক্ষণ করলে চেকআউটে সেটি ব্যবহার করা যাবে।"}
               </div>
             </div>
           )}
@@ -1562,7 +1581,15 @@ export default function ProfileDashboard() {
       </Modal>
 
       {/* Edit Address Modal */}
-      <Modal open={editingAddressKey !== null && tempAddress !== null} onClose={closeAddressModal} title={tempAddress ? `${tempAddress.title} এডিট করুন` : undefined}>
+      <Modal
+        open={editingAddressKey !== null && tempAddress !== null}
+        onClose={closeAddressModal}
+        title={
+          tempAddress
+            ? `${tempAddress.title} ${editingAddressKey && addresses[editingAddressKey] ? "এডিট করুন" : "যোগ করুন"}`
+            : undefined
+        }
+      >
         {tempAddress && (
           <form onSubmit={handleSaveAddress} className="p-6 space-y-4">
             <label className="block">

@@ -69,20 +69,48 @@ export async function PUT(
       invoiceNo,
     } = body;
 
-    // Status-only quick update
+    // Status-only quick update. Completing delivery also settles payment.
     if (
       status !== undefined &&
       customerName === undefined &&
       items === undefined &&
-      shippingAddress === undefined
+      shippingAddress === undefined &&
+      paymentStatus === undefined
     ) {
       const updated = await prisma.order.update({
         where: { id: existing.dbId },
-        data: { status: toPrismaStatus(status as OrderStatus) },
+        data: {
+          status: toPrismaStatus(status as OrderStatus),
+          ...(status === "Delivered" ? { paymentStatus: "Paid" } : {}),
+        },
       });
       return NextResponse.json({
         ok: true,
-        message: "অর্ডার স্ট্যাটাস আপডেট হয়েছে।",
+        message:
+          status === "Delivered"
+            ? "ডেলিভারি সম্পন্ন। পেমেন্ট হয়ে গেছে।"
+            : "অর্ডার স্ট্যাটাস আপডেট হয়েছে।",
+        order: mapPrismaOrderToStored(updated),
+      });
+    }
+
+    if (
+      paymentStatus !== undefined &&
+      status === undefined &&
+      customerName === undefined &&
+      items === undefined &&
+      shippingAddress === undefined
+    ) {
+      const nextPayment =
+        existing.status === "Delivered" ? "Paid" : (paymentStatus as PaymentStatus);
+      const updated = await prisma.order.update({
+        where: { id: existing.dbId },
+        data: { paymentStatus: nextPayment },
+      });
+      return NextResponse.json({
+        ok: true,
+        message:
+          nextPayment === "Paid" ? "পেমেন্ট হয়ে গেছে।" : "পেমেন্ট বাকি হিসেবে রাখা হয়েছে।",
         order: mapPrismaOrderToStored(updated),
       });
     }
@@ -143,6 +171,8 @@ export async function PUT(
               : existing.deliveryTimeSlot,
           invoiceNo: invoiceNo || existing.invoiceNo,
           subtotal: computedSubtotal,
+          transactionId: existing.transactionId,
+          paymentProofUrl: existing.paymentProofUrl,
         }),
         status:
           status !== undefined
@@ -154,9 +184,11 @@ export async function PUT(
             ? (paymentMethod as PaymentMethod)
             : existing.paymentMethod,
         paymentStatus:
-          paymentStatus !== undefined
-            ? (paymentStatus as PaymentStatus)
-            : existing.paymentStatus,
+          (status !== undefined ? status : existing.status) === "Delivered"
+            ? "Paid"
+            : paymentStatus !== undefined
+              ? (paymentStatus as PaymentStatus)
+              : existing.paymentStatus,
         deliveryCharge: fee,
         discount: disc,
         totalAmount: computedTotal,

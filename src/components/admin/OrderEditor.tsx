@@ -32,6 +32,7 @@ import {
   OrderStatus,
   PaymentMethod,
   PaymentStatus,
+  paymentStatusLabel,
 } from "@/lib/orderStorage";
 import { ALL_AVAILABLE_PRODUCTS } from "@/lib/categoryStorage";
 import { toBnDigits } from "@/lib/bangla";
@@ -416,7 +417,7 @@ export default function OrderEditor({ orderId }: { orderId?: string }) {
                       paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                     }`}
                   >
-                    {paymentStatus === "Paid" ? "পরিশোধিত" : "ক্যাশ অন ডেলিভারি (বাকি)"}
+                    {paymentStatusLabel({ paymentStatus, paymentMethod })}
                   </span>
                 </div>
               </div>

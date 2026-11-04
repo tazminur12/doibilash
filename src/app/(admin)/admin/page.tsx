@@ -577,6 +577,7 @@ export default function AdminDashboardPage() {
                           : order.paymentMethod === "Nagad"
                           ? "নগদ"
                           : "ক্যাশ অন ডেলিভারি"}
+                        {order.paymentStatus === "Paid" ? " · পেমেন্ট হয়ে গেছে" : ""}
                       </span>
                     </td>
 

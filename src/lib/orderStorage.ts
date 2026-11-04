@@ -30,7 +30,21 @@ export interface StoredOrder {
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  /** bKash/Nagad transaction id submitted by the customer */
+  transactionId?: string;
+  /** Screenshot of the mobile-banking payment */
+  paymentProofUrl?: string;
   status: OrderStatus;
+}
+
+export function paymentStatusLabel(order: {
+  paymentStatus: PaymentStatus;
+  paymentMethod?: PaymentMethod;
+}): string {
+  if (order.paymentStatus === "Paid") return "পেমেন্ট হয়ে গেছে";
+  if (order.paymentStatus === "Partial") return "আংশিক পরিশোধ";
+  if (order.paymentMethod === "Cash on Delivery") return "ক্যাশ অন ডেলিভারি";
+  return "বাকি";
 }
 
 export const STATUS_META: Record<

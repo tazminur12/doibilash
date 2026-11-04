@@ -69,113 +69,48 @@ function mapPrismaOrder(o: {
   };
 }
 
-// Seed helper for newly registered or demo user if no orders exist yet
-async function seedInitialUserOrders(userId: string, name: string, phone: string, email?: string | null) {
-  const sampleOrders = [
-    {
-      orderNumber: `DB-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId,
-      customerName: name,
-      customerPhone: phone,
-      customerEmail: email || `${phone}@customer.doibilash.com`,
-      shippingAddress: {
-        title: "শিপিং ঠিকানা",
-        name,
-        phone,
-        fullAddress: "বাড়ি ১২, রোড ৫, ধানমন্ডি",
-        city: "ঢাকা সিটি",
-      },
-      status: "SHIPPED" as const,
-      deliveryMethod: "হোম ডেলিভারি (ঢাকা সিটি)",
-      paymentMethod: "ক্যাশ অন ডেলিভারি",
-      paymentStatus: "Unpaid",
-      deliveryCharge: 60,
-      totalAmount: 2450,
-      items: [
-        {
-          name: "বগুড়ার স্পেশাল সরার মিষ্টি দই",
-          qty: 2,
-          price: 500,
-          image: "/Product/doi.jpg",
-        },
-        {
-          name: "খাঁটি দানাদার গাওয়া ঘি (৫০০ গ্রাম)",
-          qty: 1,
-          price: 1450,
-          image: "/Product/placeholder.svg",
-        },
-      ],
-      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    },
-    {
-      orderNumber: `DB-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId,
-      customerName: name,
-      customerPhone: phone,
-      customerEmail: email || `${phone}@customer.doibilash.com`,
-      shippingAddress: {
-        title: "শিপিং ঠিকানা",
-        name,
-        phone,
-        fullAddress: "বাড়ি ১২, রোড ৫, ধানমন্ডি",
-        city: "ঢাকা সিটি",
-      },
-      status: "DELIVERED" as const,
-      deliveryMethod: "এক্সপ্রেস ডেলিভারি",
-      paymentMethod: "বিকাশ",
-      paymentStatus: "Paid",
-      deliveryCharge: 60,
-      totalAmount: 1600,
-      items: [
-        {
-          name: "সুন্দরবনের প্রাকৃতিক মধু",
-          qty: 1,
-          price: 850,
-          image: "/Product/placeholder.svg",
-        },
-        {
-          name: "প্রিমিয়াম খোরমা খেজুর",
-          qty: 1,
-          price: 750,
-          image: "/Product/placeholder.svg",
-        },
-      ],
-      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-    },
-    {
-      orderNumber: `DB-${Math.floor(1000 + Math.random() * 9000)}`,
-      userId,
-      customerName: name,
-      customerPhone: phone,
-      customerEmail: email || `${phone}@customer.doibilash.com`,
-      shippingAddress: {
-        title: "শিপিং ঠিকানা",
-        name,
-        phone,
-        fullAddress: "বাড়ি ১২, রোড ৫, ধানমন্ডি",
-        city: "ঢাকা সিটি",
-      },
-      status: "DELIVERED" as const,
-      deliveryMethod: "স্ট্যান্ডার্ড ডেলিভারি",
-      paymentMethod: "ক্যাশ অন ডেলিভারি",
-      paymentStatus: "Paid",
-      deliveryCharge: 60,
-      totalAmount: 1260,
-      items: [
-        {
-          name: "স্পেশাল মাটির কাপ দই (৪ পিস)",
-          qty: 3,
-          price: 420,
-          image: "/Product/mini_doi.png",
-        },
-      ],
-      createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
-    },
-  ];
+const SEEDED_DEMO_ADDRESS = "বাড়ি ১২, রোড ৫, ধানমন্ডি";
+const SEEDED_DEMO_ITEM_NAMES = new Set([
+  "বগুড়ার স্পেশাল সরার মিষ্টি দই",
+  "খাঁটি দানাদার গাওয়া ঘি (৫০০ গ্রাম)",
+  "সুন্দরবনের প্রাকৃতিক মধু",
+  "প্রিমিয়াম খোরমা খেজুর",
+  "স্পেশাল মাটির কাপ দই (৪ পিস)",
+]);
 
-  for (const o of sampleOrders) {
-    await prisma.order.create({ data: o });
+/** Rows previously inserted when a user had no orders. Real checkout orders always carry an invoice number. */
+function isSeededDemoOrder(order: { shippingAddress: unknown; items: unknown }): boolean {
+  const address = order.shippingAddress;
+  if (!address || typeof address !== "object") return false;
+  const addr = address as { fullAddress?: string; title?: string; invoiceNo?: string };
+  if (addr.fullAddress !== SEEDED_DEMO_ADDRESS || addr.title !== "শিপিং ঠিকানা" || addr.invoiceNo) {
+    return false;
   }
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length === 0) return false;
+  return items.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const name = (item as { name?: unknown }).name;
+    return typeof name === "string" && SEEDED_DEMO_ITEM_NAMES.has(name);
+  });
+}
+
+async function removeSeededDemoOrders() {
+  const candidates = await prisma.order.findMany({
+    where: {
+      shippingAddress: {
+        path: ["fullAddress"],
+        equals: SEEDED_DEMO_ADDRESS,
+      },
+    },
+    select: { id: true, shippingAddress: true, items: true },
+  });
+
+  const ids = candidates.filter(isSeededDemoOrder).map((order) => order.id);
+  if (ids.length === 0) return;
+
+  await prisma.order.deleteMany({ where: { id: { in: ids } } });
 }
 
 export async function GET() {
@@ -197,34 +132,23 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "ইউজার পাওয়া যায়নি" }, { status: 404 });
     }
 
-    // Find orders by userId or customerPhone
-    let orders = await prisma.order.findMany({
-      where: {
-        OR: [
-          { userId: user.id },
-          { customerPhone: user.phone },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    // If zero orders found, seed initial sample orders for the user
-    if (orders.length === 0) {
-      try {
-        await seedInitialUserOrders(user.id, user.name, user.phone, user.email);
-        orders = await prisma.order.findMany({
-          where: {
-            OR: [
-              { userId: user.id },
-              { customerPhone: user.phone },
-            ],
-          },
-          orderBy: { createdAt: "desc" },
-        });
-      } catch (err) {
-        console.error("Error seeding initial orders:", err);
-      }
+    try {
+      await removeSeededDemoOrders();
+    } catch (err) {
+      console.error("Error removing seeded demo orders:", err);
     }
+
+    const orders = (
+      await prisma.order.findMany({
+        where: {
+          OR: [
+            { userId: user.id },
+            { customerPhone: user.phone },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    ).filter((order) => !isSeededDemoOrder(order));
 
     const mappedOrders = orders.map(mapPrismaOrder);
 

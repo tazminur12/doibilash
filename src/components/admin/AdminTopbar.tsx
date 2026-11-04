@@ -35,6 +35,7 @@ interface AdminTopbarProps {
 const ROUTE_TITLES: Record<string, { title: string; subtitle: string }> = {
   "/admin": { title: "এডমিন ড্যাশবোর্ড", subtitle: "এক নজরে সামগ্রিক বিক্রয় ও অর্ডার মেট্রিক্স" },
   "/admin/orders": { title: "অর্ডার ব্যবস্থাপনা", subtitle: "সকল অর্ডার পর্যালোচনা ও ডেলিভারি ট্র্যাকিং" },
+  "/admin/payments": { title: "পেমেন্ট", subtitle: "বিকাশ, নগদ ও ক্যাশ অন ডেলিভারির টাকা" },
   "/admin/orders/new": { title: "ম্যানুয়াল অর্ডার তৈরি", subtitle: "গ্রাহকের জন্য সরাসরি নতুন অর্ডার প্লেসমেন্ট" },
   "/admin/products": { title: "পণ্য তালিকা ও ইনভেন্টরি", subtitle: "মিষ্টি ও দইয়ের ক্যাটালগ ও মূল্য নির্ধারণ" },
   "/admin/products/new": { title: "নতুন পণ্য যুক্তকরণ", subtitle: "ক্যাটালগে নতুন প্রডাক্ট ও ছবি আপলোড" },

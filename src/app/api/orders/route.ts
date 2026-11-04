@@ -50,6 +50,8 @@ export async function POST(req: Request) {
       totalAmount,
       paymentMethod,
       promoCode,
+      transactionId,
+      paymentProofUrl,
     } = body;
 
     if (!customerName || !String(customerName).trim()) {
@@ -123,11 +125,30 @@ export async function POST(req: Request) {
 
     const methodRaw = String(paymentMethod || "cod").toLowerCase();
     const storedPayment: PaymentMethod =
-      methodRaw === "online" || methodRaw.includes("bkash") || methodRaw.includes("বিকাশ")
+      methodRaw === "bkash" || methodRaw === "online" || methodRaw.includes("bkash") || methodRaw.includes("বিকাশ")
         ? "bKash"
-        : methodRaw.includes("nagad") || methodRaw.includes("নগদ")
+        : methodRaw === "nagad" || methodRaw.includes("nagad") || methodRaw.includes("নগদ")
           ? "Nagad"
           : "Cash on Delivery";
+
+    const isMobilePayment = storedPayment === "bKash" || storedPayment === "Nagad";
+    const trx = String(transactionId || "").replace(/\s+/g, "").toUpperCase();
+    if (isMobilePayment && !/^[A-Z0-9]{6,30}$/.test(trx)) {
+      return NextResponse.json(
+        { ok: false, error: "সঠিক ট্রানজেকশন আইডি দিন। বিকাশ বা নগদে পেমেন্ট না হলে অর্ডার কনফার্ম হয় না।" },
+        { status: 400 }
+      );
+    }
+
+    let proofUrl: string | null = null;
+    if (paymentProofUrl && typeof paymentProofUrl === "string") {
+      try {
+        const parsed = new URL(paymentProofUrl);
+        if (parsed.protocol === "https:") proofUrl = parsed.toString();
+      } catch {
+        proofUrl = null;
+      }
+    }
 
     const userId = await getOptionalUserId();
 
@@ -151,11 +172,13 @@ export async function POST(req: Request) {
           deliveryTimeSlot,
           invoiceNo: `INV-${orderNumber.replace(/^DB-/, "")}`,
           subtotal: computedSubtotal,
+          transactionId: isMobilePayment ? trx : undefined,
+          paymentProofUrl: isMobilePayment && proofUrl ? proofUrl : undefined,
         }),
         status: toPrismaStatus("Pending"),
         deliveryMethod: `হোম ডেলিভারি (${area})`,
         paymentMethod: storedPayment,
-        paymentStatus: "Unpaid" as PaymentStatus,
+        paymentStatus: (isMobilePayment ? "Paid" : "Unpaid") as PaymentStatus,
         deliveryCharge: fee,
         discount: disc,
         totalAmount: computedTotal,

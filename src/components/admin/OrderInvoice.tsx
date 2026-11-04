@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { Printer, Download, ArrowLeft, CheckCircle2, ShieldCheck, Phone, Mail, MapPin } from "lucide-react";
-import { StoredOrder, STATUS_META } from "@/lib/orderStorage";
+import { StoredOrder, STATUS_META, paymentStatusLabel } from "@/lib/orderStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 export default function OrderInvoice({
@@ -200,9 +200,15 @@ export default function OrderInvoice({
                       : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {order.paymentStatus === "Paid" ? "পরিশোধিত (PAID)" : "বাকি (UNPAID)"}
+                  {paymentStatusLabel(order)}
                 </span>
               </div>
+              {order.transactionId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-stone-500">ট্রানজেকশন আইডি:</span>
+                  <strong className="font-sans text-doibrand-dark">{order.transactionId}</strong>
+                </div>
+              )}
               {order.notes && (
                 <div className="pt-1 text-[11px] text-stone-500 border-t border-stone-200">
                   নোট: {order.notes}

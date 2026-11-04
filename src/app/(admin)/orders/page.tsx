@@ -29,6 +29,7 @@ import {
 import {
   StoredOrder,
   STATUS_META,
+  paymentStatusLabel,
 } from "@/lib/orderStorage";
 import OrderInvoice from "@/components/admin/OrderInvoice";
 import { toBnDigits } from "@/lib/bangla";
@@ -371,7 +372,7 @@ export default function AdminOrdersPage() {
                               : "bg-amber-100 text-amber-800"
                           }`}
                         >
-                          {order.paymentStatus === "Paid" ? "পরিশোধিত" : "ক্যাশ অন ডেলিভারি"}
+                          {paymentStatusLabel(order)}
                         </span>
                         <span className="block text-[10px] text-stone-400 font-sans mt-0.5">
                           {order.paymentMethod}
@@ -490,7 +491,7 @@ export default function AdminOrdersPage() {
                     order.paymentStatus === "Paid" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {order.paymentStatus === "Paid" ? "পরিশোধিত" : "ক্যাশ অন ডেলিভারি"}
+                  {paymentStatusLabel(order)}
                 </span>
               </div>
 

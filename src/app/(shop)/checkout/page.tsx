@@ -30,12 +30,14 @@ import {
 import { useCart } from "@/context/CartContext";
 import { evaluatePromo, isPromoExpired, type PromoCodeItem } from "@/data/promos";
 import { authFetch, getCurrentUser } from "@/lib/authStorage";
+import { saveCheckoutDraft } from "@/lib/checkoutDraft";
 import { DEFAULT_SETTINGS, type StoreSettings } from "@/lib/settingsStorage";
 import { toBnDigits } from "@/lib/bangla";
 
 const PAYMENT_OPTIONS = {
   cod: { label: "ক্যাশ অন ডেলিভারি", note: "পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন", icon: Banknote },
-  online: { label: "বিকাশ / নগদ", note: "মোবাইল ব্যাংকিংয়ে নিরাপদ অগ্রিম পেমেন্ট", icon: Smartphone },
+  bkash: { label: "বিকাশ", note: "বিকাশে টাকা পাঠিয়ে ট্রানজেকশন আইডি দিন", icon: Smartphone },
+  nagad: { label: "নগদ", note: "নগদে টাকা পাঠিয়ে ট্রানজেকশন আইডি দিন", icon: Smartphone },
 } as const;
 
 type DeliveryArea = "inside" | "outside";
@@ -178,7 +180,14 @@ export default function CheckoutPage() {
     if (user) {
       setFullName((prev) => prev || user.name || "");
       setPhoneNumber((prev) => prev || user.phone || "");
-      setFullAddress((prev) => prev || user.address || "");
+      const savedShipping =
+        user.shippingAddress && typeof user.shippingAddress === "object"
+          ? String((user.shippingAddress as { fullAddress?: string }).fullAddress || "").trim()
+          : "";
+      const savedAddress = savedShipping || (user.address || "").trim();
+      if (savedAddress && savedAddress !== "ফ্ল্যাট ৪বি, বাড়ি ২৫, রোড ৭, সেক্টর ৪, উত্তরা") {
+        setFullAddress((prev) => prev || savedAddress);
+      }
     }
     return () => {
       cancelled = true;
@@ -285,6 +294,37 @@ export default function CheckoutPage() {
       setSubmitError("নাম ও সম্পূর্ণ ঠিকানা পূরণ করুন।");
       return;
     }
+    const needsPaymentProof = paymentMethod === "bkash" || paymentMethod === "nagad";
+    if (needsPaymentProof) {
+      saveCheckoutDraft({
+        customerName: fullName.trim(),
+        customerPhone: normalizePhone(phoneNumber),
+        customerEmail: getCurrentUser()?.email || undefined,
+        shippingAddress: fullAddress.trim(),
+        deliveryArea,
+        notes: [orderNotes.trim(), altPhoneNumber.trim() ? `বিকল্প ফোন: ${altPhoneNumber.trim()}` : ""]
+          .filter(Boolean)
+          .join(" | "),
+        items: items.map((it) => ({
+          id: String(it.id),
+          productId: String(it.id),
+          title: it.title,
+          price: it.price,
+          quantity: it.quantity,
+          unit: it.unit || "১টি",
+          image: it.image,
+        })),
+        subtotal,
+        deliveryFee,
+        discount: couponDiscount,
+        totalAmount: grandTotal,
+        paymentMethod,
+        promoCode: appliedPromo?.code,
+      });
+      router.push("/checkout/payment");
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError("");
     try {
@@ -342,8 +382,24 @@ export default function CheckoutPage() {
   const steps = [
     { label: "কার্ট", done: true },
     { label: "তথ্য ও পেমেন্ট", active: true },
-    { label: "কনফার্মেশন" },
+    { label: paymentMethod === "cod" ? "কনফার্মেশন" : "পেমেন্ট প্রুফ" },
   ];
+
+  const confirmLabel = paymentMethod === "cod" ? "অর্ডার কনফার্ম করুন" : "পেমেন্ট করতে যান";
+  const selectedWallet =
+    paymentMethod === "bkash"
+      ? {
+          name: "বিকাশ",
+          number: settings.bkashMerchantNumber,
+          type: settings.bkashAccountType,
+        }
+      : paymentMethod === "nagad"
+        ? {
+            name: "নগদ",
+            number: settings.nagadMerchantNumber,
+            type: settings.nagadAccountType,
+          }
+        : null;
 
   if (items.length === 0 && !isSubmitting) {
     return (
@@ -559,34 +615,60 @@ export default function CheckoutPage() {
             <div className={`${cardClass} p-5 sm:p-7`}>
               <SectionHeader step="২" title="পেমেন্ট মেথড" subtitle="আপনার সুবিধাজনক পেমেন্ট মাধ্যম বেছে নিন" />
               <div className="space-y-3">
-                <OptionCard
-                  name="paymentMethod"
-                  selected={paymentMethod === "cod"}
-                  onSelect={() => setPaymentMethod("cod")}
-                  icon={PAYMENT_OPTIONS.cod.icon}
-                  title={PAYMENT_OPTIONS.cod.label}
-                  note={PAYMENT_OPTIONS.cod.note}
-                  aside={
-                    <span className="hidden sm:inline rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/70">
-                      জনপ্রিয়
-                    </span>
-                  }
-                />
-                <OptionCard
-                  name="paymentMethod"
-                  selected={paymentMethod === "online"}
-                  onSelect={() => setPaymentMethod("online")}
-                  icon={PAYMENT_OPTIONS.online.icon}
-                  title={PAYMENT_OPTIONS.online.label}
-                  note={PAYMENT_OPTIONS.online.note}
-                  aside={
-                    <span className="flex items-center gap-1 shrink-0">
-                      <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-[#E2136E] ring-1 ring-stone-200 font-sans">bKash</span>
-                      <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-[#F7931E] ring-1 ring-stone-200 font-sans">Nagad</span>
-                    </span>
-                  }
-                />
+                {settings.enableCod !== false && (
+                  <OptionCard
+                    name="paymentMethod"
+                    selected={paymentMethod === "cod"}
+                    onSelect={() => setPaymentMethod("cod")}
+                    icon={PAYMENT_OPTIONS.cod.icon}
+                    title={PAYMENT_OPTIONS.cod.label}
+                    note={PAYMENT_OPTIONS.cod.note}
+                    aside={
+                      <span className="hidden sm:inline rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/70">
+                        জনপ্রিয়
+                      </span>
+                    }
+                  />
+                )}
+                {settings.enableBkash !== false && (
+                  <OptionCard
+                    name="paymentMethod"
+                    selected={paymentMethod === "bkash"}
+                    onSelect={() => setPaymentMethod("bkash")}
+                    icon={PAYMENT_OPTIONS.bkash.icon}
+                    title={PAYMENT_OPTIONS.bkash.label}
+                    note={PAYMENT_OPTIONS.bkash.note}
+                    aside={
+                      <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-[#E2136E] ring-1 ring-stone-200 font-sans">
+                        bKash
+                      </span>
+                    }
+                  />
+                )}
+                {settings.enableNagad !== false && (
+                  <OptionCard
+                    name="paymentMethod"
+                    selected={paymentMethod === "nagad"}
+                    onSelect={() => setPaymentMethod("nagad")}
+                    icon={PAYMENT_OPTIONS.nagad.icon}
+                    title={PAYMENT_OPTIONS.nagad.label}
+                    note={PAYMENT_OPTIONS.nagad.note}
+                    aside={
+                      <span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-black text-[#F6921E] ring-1 ring-stone-200 font-sans">
+                        Nagad
+                      </span>
+                    }
+                  />
+                )}
               </div>
+              {selectedWallet && (
+                <p className="mt-4 rounded-2xl bg-[#FFF9F1] px-4 py-3 text-xs leading-relaxed text-stone-600 ring-1 ring-doibrand-gold/20">
+                  পরের পেজে {selectedWallet.name} নম্বর{" "}
+                  <strong className="font-sans text-doibrand-dark">{selectedWallet.number || "—"}</strong>
+                  {selectedWallet.type === "Personal" ? " (পার্সোনাল)" : " (মার্চেন্ট)"}-এ টাকা পাঠিয়ে ট্রানজেকশন আইডি
+                  দিতে হবে। সেটা জমা না দিলে অর্ডার কনফার্ম হবে না।
+                </p>
+              )}
             </div>
           </div>
 
@@ -762,7 +844,7 @@ export default function CheckoutPage() {
                   ) : (
                     <Lock className="w-5 h-5" />
                   )}
-                  {isSubmitting ? "অর্ডার সম্পন্ন হচ্ছে..." : "অর্ডার কনফার্ম করুন"}
+                  {isSubmitting ? "অর্ডার সম্পন্ন হচ্ছে..." : confirmLabel}
                 </button>
 
                 <p className="mt-3 text-center text-[11px] text-stone-400">
@@ -809,7 +891,7 @@ export default function CheckoutPage() {
               className="h-12 px-5 inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-doibrand-accent to-doibrand-gold text-sm font-bold text-white shadow-[0_10px_22px_-12px_rgba(169,94,53,0.95)] disabled:opacity-75"
             >
               {isSubmitting ? <span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" /> : <Lock className="w-4 h-4" />}
-              অর্ডার কনফার্ম
+              {paymentMethod === "cod" ? "অর্ডার কনফার্ম" : "পেমেন্ট"}
             </button>
           </div>
         </div>

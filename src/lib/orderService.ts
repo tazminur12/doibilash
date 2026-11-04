@@ -18,6 +18,8 @@ type ShippingJson = {
   title?: string;
   name?: string;
   phone?: string;
+  transactionId?: string;
+  paymentProofUrl?: string;
 };
 
 const STATUS_TO_PRISMA: Record<OrderStatus, PrismaOrderStatus> = {
@@ -130,6 +132,8 @@ export function mapPrismaOrderToStored(row: {
     totalAmount: row.totalAmount,
     paymentMethod,
     paymentStatus,
+    transactionId: shipping.transactionId || undefined,
+    paymentProofUrl: shipping.paymentProofUrl || undefined,
     status: STATUS_FROM_PRISMA[row.status] || "Processing",
   };
 }
@@ -145,11 +149,25 @@ export function buildShippingJson(order: Partial<StoredOrder>): ShippingJson {
     deliveryTimeSlot: order.deliveryTimeSlot,
     invoiceNo: order.invoiceNo,
     subtotal: order.subtotal,
+    ...(order.transactionId ? { transactionId: order.transactionId } : {}),
+    ...(order.paymentProofUrl ? { paymentProofUrl: order.paymentProofUrl } : {}),
   };
+}
+
+/** Delivered orders are collected — keep payment status in step with delivery. */
+export async function settleDeliveredPayments() {
+  await prisma.order.updateMany({
+    where: {
+      status: "DELIVERED",
+      NOT: { paymentStatus: "Paid" },
+    },
+    data: { paymentStatus: "Paid" },
+  });
 }
 
 /** No demo seed — admin orders come only from real creates / storefront */
 export async function getAdminOrders(): Promise<StoredOrder[]> {
+  await settleDeliveredPayments();
   const rows = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
   });

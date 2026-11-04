@@ -56,6 +56,7 @@ interface TrackedOrderData {
   activeStepIndex: number;
   deliveryAddress: string;
   paymentMethod: string;
+  paymentStatus?: string;
   deliveryCharge: number;
   items: OrderItem[];
   updates: StepUpdate[];
@@ -418,7 +419,11 @@ export default function OrderTrackingPage() {
                 <p className="mt-2 text-sm leading-relaxed text-stone-600">{orderData.deliveryAddress}</p>
                 <p className="mt-3 flex items-center gap-1.5 text-xs text-stone-500">
                   <Wallet className="w-3.5 h-3.5 text-doibrand-gold" />
-                  পেমেন্ট: <span className="font-semibold text-doibrand-dark">{orderData.paymentMethod}</span>
+                  পেমেন্ট:{" "}
+                  <span className="font-semibold text-doibrand-dark">
+                    {orderData.paymentMethod}
+                    {orderData.paymentStatus === "Paid" ? " · পেমেন্ট সফল" : ""}
+                  </span>
                 </p>
               </div>
 

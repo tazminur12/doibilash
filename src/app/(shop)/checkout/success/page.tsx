@@ -31,7 +31,11 @@ function SuccessContent() {
   const orderId = rawOrderId ? (rawOrderId.startsWith("#") ? rawOrderId : `#${rawOrderId}`) : null;
   const rawTotal = Number(searchParams.get("total"));
   const totalFormatted = Number.isFinite(rawTotal) && rawTotal > 0 ? `৳ ${rawTotal.toLocaleString("en-US")}` : null;
-  const isOnline = searchParams.get("payment") === "online";
+  const payment = searchParams.get("payment");
+  const isBkash = payment === "bkash" || payment === "online";
+  const isNagad = payment === "nagad";
+  const isMobilePaid = isBkash || isNagad;
+  const paymentLabel = isBkash ? "বিকাশ (পেমেন্ট সফল)" : isNagad ? "নগদ (পেমেন্ট সফল)" : "ক্যাশ অন ডেলিভারি";
   const insideDhaka = searchParams.get("area") !== "outside";
   const customerName = searchParams.get("name") || "সম্মানিত গ্রাহক";
 
@@ -49,11 +53,11 @@ function SuccessContent() {
   const details = [
     {
       icon: Wallet,
-      label: isOnline ? "পরিশোধযোগ্য মূল্য" : "ডেলিভারিতে পরিশোধ করবেন",
+      label: isMobilePaid ? "পরিশোধিত মূল্য" : "ডেলিভারিতে পরিশোধ করবেন",
       value: totalFormatted ?? "—",
       accent: true,
     },
-    { icon: ShieldCheck, label: "পেমেন্ট মেথড", value: isOnline ? "বিকাশ / নগদ" : "ক্যাশ অন ডেলিভারি" },
+    { icon: ShieldCheck, label: "পেমেন্ট মেথড", value: paymentLabel },
     { icon: CalendarClock, label: "সম্ভাব্য ডেলিভারি", value: insideDhaka ? "২৪ ঘণ্টার মধ্যে" : "৪৮–৭২ ঘণ্টার মধ্যে" },
     { icon: ClipboardCheck, label: "বর্তমান অবস্থা", value: "অর্ডার গ্রহণ করা হয়েছে", status: true },
   ];
@@ -80,7 +84,9 @@ function SuccessContent() {
         </h1>
         <p className="relative mx-auto mt-3 max-w-lg text-sm sm:text-base leading-relaxed text-stone-600">
           ধন্যবাদ <strong className="text-doibrand-dark">{customerName}</strong>! দই বিলাস থেকে অর্ডার করার জন্য আমরা কৃতজ্ঞ।
-          আমাদের প্রতিনিধি খুব শীঘ্রই আপনার সাথে যোগাযোগ করবেন।
+          {isMobilePaid
+            ? " আপনার পেমেন্ট আমরা পেয়েছি এবং অর্ডারটি কনফার্ম হয়েছে।"
+            : " আমাদের প্রতিনিধি খুব শীঘ্রই আপনার সাথে যোগাযোগ করবেন।"}
         </p>
 
         {/* Order ID */}

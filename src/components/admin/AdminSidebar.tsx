@@ -23,6 +23,7 @@ import {
   TicketPercent,
   UserRound,
   Images,
+  Wallet,
 } from "lucide-react";
 import {
   AUTH_CHANGED_EVENT,
@@ -69,6 +70,12 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
         icon: ShoppingBag,
         badge: "৮ টি",
         badgeColor: "bg-[#C48A4E] text-white",
+      },
+      {
+        name: "Payments",
+        nameBn: "পেমেন্ট",
+        href: "/admin/payments",
+        icon: Wallet,
       },
       {
         name: "Corporate Orders",

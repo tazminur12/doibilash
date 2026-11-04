@@ -30,6 +30,7 @@ import {
   StoredOrder,
   OrderStatus,
   STATUS_META,
+  paymentStatusLabel,
 } from "@/lib/orderStorage";
 import OrderInvoice from "@/components/admin/OrderInvoice";
 import { toBnDigits } from "@/lib/bangla";
@@ -109,7 +110,11 @@ export default function OrderDetailView({ orderId }: { orderId: string }) {
       }
       const updated = (data.order as StoredOrder) || { ...order, status: newStatus };
       setOrder(updated);
-      showToast(`অর্ডার স্ট্যাটাস "${STATUS_META[newStatus].labelBn}" এ পরিবর্তন করা হয়েছে`);
+      showToast(
+        newStatus === "Delivered"
+          ? "ডেলিভারি সম্পন্ন। পেমেন্ট হয়ে গেছে।"
+          : `অর্ডার স্ট্যাটাস "${STATUS_META[newStatus].labelBn}" এ পরিবর্তন করা হয়েছে`
+      );
     } catch {
       showToast("সার্ভারে সংযোগ করা যায়নি");
     }
@@ -455,9 +460,32 @@ export default function OrderDetailView({ orderId }: { orderId: string }) {
                       : "bg-amber-100 text-amber-800"
                   }`}
                 >
-                  {order.paymentStatus === "Paid" ? "পরিশোধিত (Paid)" : "বাকি (Unpaid)"}
+                  {paymentStatusLabel(order)}
                 </span>
               </div>
+              {order.transactionId && (
+                <div className="flex justify-between items-center gap-3">
+                  <span className="text-stone-500">ট্রানজেকশন আইডি:</span>
+                  <strong className="font-sans text-doibrand-dark">{order.transactionId}</strong>
+                </div>
+              )}
+              {order.paymentProofUrl && (
+                <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="block">
+                  <span className="text-stone-500">পেমেন্ট প্রুফ:</span>
+                  <Image
+                    src={order.paymentProofUrl}
+                    alt="পেমেন্ট প্রুফ"
+                    width={320}
+                    height={180}
+                    className="mt-2 max-h-72 w-full rounded-xl bg-stone-50 object-contain ring-1 ring-stone-200"
+                  />
+                </a>
+              )}
+              {order.paymentStatus === "Paid" && order.paymentMethod !== "Cash on Delivery" && (
+                <p className="rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200">
+                  গ্রাহক {order.paymentMethod}-এ পেমেন্ট সম্পন্ন করেছেন। পেমেন্ট সফল।
+                </p>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-stone-500">মোট টাকা:</span>
                 <strong className="text-base text-doibrand-accent font-sans">
